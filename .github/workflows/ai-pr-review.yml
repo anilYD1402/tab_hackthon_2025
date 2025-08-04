@@ -49,14 +49,19 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           echo "Generating AI-based PR summary using Gemini..."
+          PR_DIFF=$(cat pr_diff.txt | sed 's/"/\\"/g' | tr '\n' ' ')
           RESPONSE=$(curl -s -X POST "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$GEMINI_API_KEY" \
             -H "Content-Type: application/json" \
             -d "{
-              \"contents\": [{
-                \"parts\": [{
-                  \"text\": \"Summarize this PR based on the following diff:\n\n$(cat pr_diff.txt | sed 's/\"/\\\"/g')\"
-                }]
-              }]
+              \"contents\": [
+                {
+                  \"parts\": [
+                    {
+                      \"text\": \"Summarize this PR based on the following diff: $PR_DIFF\"
+                    }
+                  ]
+                }
+              ]
             }")
 
           echo "----- 🤖 RAW GEMINI RESPONSE -----"
@@ -76,12 +81,10 @@ jobs:
         with:
           github-token: ${{ secrets.PR_COMMENT_TOKEN }}
           script: |
-            const summary = process.env.SUMMARY;
+            const summary = `${{ steps.ai.outputs.summary }}`;
             github.rest.issues.createComment({
               issue_number: context.payload.pull_request.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
               body: `### 🤖 AI PR Review Summary\n\n${summary}`
             });
-        env:
-          SUMMARY: ${{ steps.ai.outputs.summary }}
