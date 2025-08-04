@@ -17,6 +17,15 @@ jobs:
       # 1️⃣ Checkout PR code
       - name: Checkout code
         uses: actions/checkout@v3
+          # ✅ Check if secret is available
+                - name: Check if PR_COMMENT_TOKEN secret is set
+                run: |
+                  if [ -z "${{ secrets.PR_COMMENT_TOKEN }}" ]; then
+                    echo "❌ PR_COMMENT_TOKEN secret is NOT set."
+                    exit 1
+                  else
+                    echo "✅ PR_COMMENT_TOKEN secret is available."
+                  fi
 
       # 2️⃣ Get PR Diff
       - name: Get PR Diff
