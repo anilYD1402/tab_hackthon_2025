@@ -17,6 +17,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
+      # ✅ Debug: Print PR diff
       - name: Get PR Diff
         env:
           GITHUB_TOKEN: ${{ secrets.PR_COMMENT_TOKEN }}
@@ -26,19 +27,34 @@ jobs:
                -H "Authorization: token $GITHUB_TOKEN" \
                "https://api.github.com/repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}" > pr_diff.txt
 
+          echo "----- 📝 PR DIFF -----"
+          cat pr_diff.txt
+          echo "----- END PR DIFF -----"
+
+      # ✅ Debug: Print raw Gemini response
       - name: Generate AI Summary using Gemini
         id: ai
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           echo "Generating AI-based PR summary using Gemini..."
-          SUMMARY=$(curl -s "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=$GEMINI_API_KEY" \
+          RAW_RESPONSE=$(curl -s "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=$GEMINI_API_KEY" \
             -H "Content-Type: application/json" \
             -d "{
               \"contents\": [{
                 \"parts\": [{\"text\": \"You are a senior Flutter developer and code reviewer. Summarize this PR based on the following diff:\n\n$(cat pr_diff.txt | sed 's/\"/\\\"/g')\"}]
               }]
-            }" | jq -r '.candidates[0].content.parts[0].text')
+            }")
+
+          echo "----- 🤖 RAW GEMINI RESPONSE -----"
+          echo "$RAW_RESPONSE"
+          echo "----- END RAW RESPONSE -----"
+
+          SUMMARY=$(echo "$RAW_RESPONSE" | jq -r '.candidates[0].content.parts[0].text')
+
+          echo "----- ✅ AI SUMMARY -----"
+          echo "$SUMMARY"
+          echo "----- END SUMMARY -----"
 
           echo "summary<<EOF" >> $GITHUB_OUTPUT
           echo "$SUMMARY" >> $GITHUB_OUTPUT

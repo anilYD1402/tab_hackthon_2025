@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-class TestingWidget extends StatelessWidget {
-  const TestingWidget({super.key});
+class GeminiTest extends StatelessWidget {
+  const GeminiTest({super.key});
 
   @override
   Widget build(BuildContext context) {
