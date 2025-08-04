@@ -5,6 +5,13 @@ class TestingWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Placeholder();
+    int i = 2;
+    if(i==3){
+      Container();
+    }else{
+      return SizedBox.shrink();
+    }
+    i= i+1;
+    return SizedBox();
   }
 }
