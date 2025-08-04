@@ -39,7 +39,7 @@ jobs:
                "https://api.github.com/repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}" > pr_diff.txt
 
           echo "----- 📄 PR Diff Start -----"
-          cat pr_diff.txt
+          head -n 100 pr_diff.txt  # show first 100 lines
           echo "----- 📄 PR Diff End -----"
 
       # 3️⃣ Generate AI Summary using Gemini API
@@ -49,7 +49,17 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           echo "Generating AI-based PR summary using Gemini..."
-          PR_DIFF=$(cat pr_diff.txt | sed 's/"/\\"/g' | tr '\n' ' ')
+
+          # ✅ Truncate diff if larger than 15k characters
+          DIFF_CONTENT=$(cat pr_diff.txt)
+          if [ ${#DIFF_CONTENT} -gt 15000 ]; then
+            echo "⚠️ Diff too large, truncating..."
+            DIFF_CONTENT=$(echo "$DIFF_CONTENT" | head -c 15000)
+          fi
+
+          # ✅ Base64 encode PR diff to safely send
+          PR_DIFF=$(echo "$DIFF_CONTENT" | base64 -w 0)
+
           RESPONSE=$(curl -s -X POST "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$GEMINI_API_KEY" \
             -H "Content-Type: application/json" \
             -d "{
@@ -57,7 +67,7 @@ jobs:
                 {
                   \"parts\": [
                     {
-                      \"text\": \"Summarize this PR based on the following diff: $PR_DIFF\"
+                      \"text\": \"Summarize this GitHub PR based on the following base64-encoded diff. Decode it first:\n\n$PR_DIFF\"
                     }
                   ]
                 }
@@ -81,10 +91,12 @@ jobs:
         with:
           github-token: ${{ secrets.PR_COMMENT_TOKEN }}
           script: |
-            const summary = `${{ steps.ai.outputs.summary }}`;
+            const summary = process.env.SUMMARY;
             github.rest.issues.createComment({
               issue_number: context.payload.pull_request.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
               body: `### 🤖 AI PR Review Summary\n\n${summary}`
             });
+        env:
+          SUMMARY: ${{ steps.ai.outputs.summary }}
