@@ -20,37 +20,54 @@ jobs:
       - name: Check if PR_COMMENT_TOKEN secret is set
         run: |
           if [ -z "${{ secrets.PR_COMMENT_TOKEN }}" ]; then
-            echo "❌ PR_COMMENT_TOKEN secret is NOT set."
+            echo "PR_COMMENT_TOKEN secret is NOT set."
             exit 1
           else
-            echo "✅ PR_COMMENT_TOKEN secret is available."
+            echo "PR_COMMENT_TOKEN secret is available."
           fi
 
-      - name: Get PR Diff
+      - name: Get Full PR Diff
+        id: diff
         env:
           GITHUB_TOKEN: ${{ secrets.PR_COMMENT_TOKEN }}
         run: |
-          echo "Fetching PR diff for PR #${{ github.event.pull_request.number }}"
+          echo "Fetching full PR diff for PR #${{ github.event.pull_request.number }}"
           curl -s -H "Accept: application/vnd.github.v3.diff" \
                -H "Authorization: token $GITHUB_TOKEN" \
                "https://api.github.com/repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}" > pr_diff.txt
 
-          echo "----- 📄 First 100 lines of PR Diff -----"
-          head -n 100 pr_diff.txt
+          if [ $? -ne 0 ]; then
+            echo "Error fetching PR diff."
+            exit 1
+          fi
 
-      - name: Generate AI Summary
+          echo "----- First 50 lines for preview -----"
+          head -n 50 pr_diff.txt
+
+      - name: Check PR Size
+        id: pr_size
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.PR_COMMENT_TOKEN }}
+          script: |
+            const { data: pullRequest } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.payload.pull_request.number,
+            });
+            core.setOutput("changed_files", pullRequest.changed_files);
+
+      - name: Generate Class-Wise AI Review
         id: ai
+        if: steps.pr_size.outputs.changed_files <= 100
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
-          echo "Generating structured AI-based PR summary..."
+          echo "Generating class-wise AI review..."
 
           DIFF_CONTENT=$(cat pr_diff.txt)
-          if [ ${#DIFF_CONTENT} -gt 15000 ]; then
-            echo "⚠️ Diff too large, truncating..."
-            DIFF_CONTENT=$(echo "$DIFF_CONTENT" | head -c 15000)
-          fi
 
+          # Encode full diff without truncation
           PR_DIFF=$(echo "$DIFF_CONTENT" | base64 -w 0)
 
           RESPONSE=$(curl -s -X POST "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$GEMINI_API_KEY" \
@@ -58,29 +75,37 @@ jobs:
             -d "{
               \"contents\": [{
                 \"parts\": [{
-                  \"text\": \"You are a senior Flutter reviewer. Decode the base64 diff and provide:\n
-                  - Overall purpose of this PR\n
-                  - Changed files and their role\n
-                  - Potential impact on the app\n
-                  - Risks or testing notes\n
-                  Output in markdown format with sections: Purpose, Changes, Impact, Notes.\n
+                  \"text\": \"You are a senior Flutter reviewer. Decode the base64 diff and:
+                  1. Split feedback by each class and file separately.
+                  2. For each class, describe:
+                     - Purpose
+                     - Changes made
+                     - Potential issues or risks
+                     - Testing notes
+                     - Suggested code improvements (with code snippets).
+                  3. Output in Markdown with headings for each file and class.
                   Base64 diff:\n\n$PR_DIFF\"
                 }]
               }]
             }")
 
-          echo "----- 🤖 RAW GEMINI RESPONSE -----"
+          if [ $? -ne 0 ]; then
+            echo "Error generating AI review."
+            exit 1
+          fi
+
+          echo "----- RAW GEMINI RESPONSE -----"
           echo "$RESPONSE"
 
           SUMMARY=$(echo "$RESPONSE" | jq -r '.candidates[0].content.parts[0].text')
-          echo "----- ✍️ Extracted Summary -----"
+          echo "----- Extracted Summary -----"
           echo "$SUMMARY"
 
           echo "summary<<EOF" >> $GITHUB_OUTPUT
           echo "$SUMMARY" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
-      - name: Post Summary as PR Comment
+      - name: Post Class-Wise Review as PR Comment
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.PR_COMMENT_TOKEN }}
@@ -90,7 +115,7 @@ jobs:
               issue_number: context.payload.pull_request.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: `### 🤖 AI PR Review Summary\n\n${summary}`
+              body: `### 🧠 AI PR Review (Class-Wise)\n\n${summary}`
             });
         env:
           SUMMARY: ${{ steps.ai.outputs.summary }}
