@@ -17,34 +17,39 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Check if PR_COMMENT_TOKEN secret is set
+      - name: Check PR_COMMENT_TOKEN
         run: |
           if [ -z "${{ secrets.PR_COMMENT_TOKEN }}" ]; then
-            echo "PR_COMMENT_TOKEN secret is NOT set."
+            echo "❌ PR_COMMENT_TOKEN secret is missing."
             exit 1
           else
-            echo "PR_COMMENT_TOKEN secret is available."
+            echo "✅ PR_COMMENT_TOKEN is set."
           fi
 
       - name: Get PR Diff
         env:
           GITHUB_TOKEN: ${{ secrets.PR_COMMENT_TOKEN }}
         run: |
-          echo "Fetching PR diff for PR #${{ github.event.pull_request.number }}"
+          echo "Fetching PR diff..."
           curl -s -H "Accept: application/vnd.github.v3.diff" \
                -H "Authorization: token $GITHUB_TOKEN" \
                "https://api.github.com/repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}" > pr_diff.txt
 
-          echo "----- PR Diff -----"
-          cat pr_diff.txt
-          echo "-------------------"
+          echo "----- PR Diff (Preview) -----"
+          head -n 50 pr_diff.txt
+          echo "-----------------------------"
 
-      - name: Generate AI Summary using Gemini
+          # Encode to Base64 for safe JSON transfer
+          base64 pr_diff.txt > pr_diff_base64.txt
+
+      - name: Generate AI Summary with Gemini
         id: ai
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
-          echo "Generating AI-based PR summary using Gemini..."
+          echo "Generating summary..."
+          DIFF=$(cat pr_diff_base64.txt)
+
           RESPONSE=$(curl -s -X POST \
             "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$GEMINI_API_KEY" \
             -H "Content-Type: application/json" \
@@ -52,7 +57,7 @@ jobs:
               \"contents\": [
                 {
                   \"parts\": [
-                    {\"text\": \"Summarize this PR diff:\n\n$(cat pr_diff.txt | sed 's/\"/\\\"/g')\"}
+                    {\"text\": \"Summarize this pull request. The diff (base64 encoded) is:\n$DIFF\"}
                   ]
                 }
               ]
@@ -69,7 +74,7 @@ jobs:
           echo "$SUMMARY" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
-      - name: Post AI Summary as Comment
+      - name: Post Summary as PR Comment
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.PR_COMMENT_TOKEN }}
