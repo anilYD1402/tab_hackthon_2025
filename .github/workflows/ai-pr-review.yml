@@ -1,4 +1,4 @@
-name: AI PR Review Summary
+name: AI PR Review Summary (Gemini)
 
 on:
   pull_request:
@@ -14,35 +14,52 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # 1️⃣ Checkout PR code
       - name: Checkout code
         uses: actions/checkout@v3
 
-      # ✅ Debug: Print PR diff
+      # ✅ Check if secret is available
+      - name: Check if GEMINI_API_KEY is set
+        run: |
+          if [ -z "${{ secrets.GEMINI_API_KEY }}" ]; then
+            echo "❌ GEMINI_API_KEY secret is NOT set."
+            exit 1
+          else
+            echo "✅ GEMINI_API_KEY is available."
+          fi
+
+      # 2️⃣ Get PR Diff
       - name: Get PR Diff
         env:
           GITHUB_TOKEN: ${{ secrets.PR_COMMENT_TOKEN }}
         run: |
-          echo "Fetching PR diff for PR #${{ github.event.pull_request.number }}"
+          echo "📂 Fetching PR diff for PR #${{ github.event.pull_request.number }}"
           curl -s -H "Accept: application/vnd.github.v3.diff" \
                -H "Authorization: token $GITHUB_TOKEN" \
                "https://api.github.com/repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}" > pr_diff.txt
 
-          echo "----- 📝 PR DIFF -----"
+          echo "----- 📜 PR Diff Start -----"
           cat pr_diff.txt
-          echo "----- END PR DIFF -----"
+          echo "----- 📜 PR Diff End -----"
 
-      # ✅ Debug: Print raw Gemini response
+      # 3️⃣ Generate AI Summary using Gemini
       - name: Generate AI Summary using Gemini
         id: ai
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
-          echo "Generating AI-based PR summary using Gemini..."
+          echo "🤖 Generating AI-based PR summary using Gemini..."
+
+          # ✅ Encode PR diff safely
+          DIFF_CONTENT=$(base64 -w 0 pr_diff.txt)
+
           RAW_RESPONSE=$(curl -s "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=$GEMINI_API_KEY" \
             -H "Content-Type: application/json" \
             -d "{
               \"contents\": [{
-                \"parts\": [{\"text\": \"You are a senior Flutter developer and code reviewer. Summarize this PR based on the following diff:\n\n$(cat pr_diff.txt | sed 's/\"/\\\"/g')\"}]
+                \"parts\": [{
+                  \"text\": \"You are a senior Flutter developer and code reviewer. Summarize this PR based on the following diff (Base64 encoded). Decode it first, then write summary:\n\n$DIFF_CONTENT\"
+                }]
               }]
             }")
 
@@ -60,6 +77,7 @@ jobs:
           echo "$SUMMARY" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
+      # 4️⃣ Post AI Summary as PR Comment
       - name: Post AI Summary as Comment
         uses: actions/github-script@v7
         with:
@@ -69,5 +87,5 @@ jobs:
               issue_number: context.payload.pull_request.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: `### 🤖 Gemini AI PR Review Summary\n\n${{ steps.ai.outputs.summary }}`
+              body: `### 🤖 AI PR Review Summary (Gemini)\n\n${{ steps.ai.outputs.summary }}`
             })
