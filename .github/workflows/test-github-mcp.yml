@@ -1,0 +1,27 @@
+name: Test GitHub MCP Context Fetch
+
+on:
+  workflow_dispatch: # Manual trigger for testing
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  test_mcp:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Fetch Context from MCP Server
+        env:
+          GITHUB_TOKEN: ${{ secrets.PR_COMMENT_TOKEN }}
+        run: |
+          echo "Fetching context for PR #1..."
+          RESPONSE=$(curl -s \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            "https://mcp.github.com/repos/${GITHUB_REPOSITORY}/pulls/context?pr_number=1")
+
+          echo "----- MCP Server Response -----"
+          echo "$RESPONSE"
