@@ -1,22 +1,25 @@
-name: Test GitHub MCP Context Fetch
+name: Test GitHub MCP
 
 on:
-  workflow_dispatch:  # Allows manual run from Actions tab
+  pull_request:
+    types: [opened, synchronize, reopened]
 
 jobs:
-  fetch-mcp-context:
+  test-mcp:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v3
 
       - name: Fetch Context from GitHub MCP
-        id: github_mcp
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "Fetching PR context via MCP server..."
-          CONTEXT=$(gh api \
+          echo "Fetching MCP context for PR #${{ github.event.pull_request.number }}"
+
+          RESPONSE=$(gh api \
             /repos/${GITHUB_REPOSITORY}/pulls/${{ github.event.pull_request.number }}/context \
-            --jq '.context' || echo "No MCP context available")
-          echo "Context fetched: $CONTEXT"
-          echo "context=$CONTEXT" >> $GITHUB_OUTPUT
+            --jq '.context')
+
+          echo "----- MCP Context -----"
+          echo "$RESPONSE"
