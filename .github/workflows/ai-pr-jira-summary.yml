@@ -42,31 +42,20 @@ jobs:
           echo "Fetching Jira issue description for ${{ steps.extract.outputs.issue_key }}"
           RESPONSE=$(curl -s -u $JIRA_EMAIL:$JIRA_TOKEN \
             -X GET "https://tusharnigam88.atlassian.net/rest/api/3/issue/${{ steps.extract.outputs.issue_key }}")
-          
+
           echo "----- RAW Jira API Response (first 1000 chars) -----"
           echo "$RESPONSE" | head -c 1000
 
           DESCRIPTION=$(echo "$RESPONSE" | jq -r '
             def walkContent:
-              if type == "array" then
-                map(walkContent) | join("\n")
-              elif type == "object" then
-                if .type == "text" then .text
-                elif .type == "bulletList" then (.content | map("- " + (walkContent)) | join("\n"))
-                elif .type == "paragraph" then (.content | walkContent) + "\n"
-                elif .type == "listItem" then (.content | walkContent)
-                elif .content then (.content | walkContent)
-                else empty end
-              else empty end;
-
-            .fields.description | walkContent
-          ')
+              .[] | if .content then (.content | walkContent) else .text end;
+            .fields.description.content | walkContent
+          ' | tr '\n' ' ')
 
           echo "----- Parsed Jira Description -----"
           echo "$DESCRIPTION"
 
-          # ✅ Store as single-line to avoid output truncation
-          echo "description=$(echo "$DESCRIPTION" | sed ':a;N;$!ba;s/\n/ /g')" >> $GITHUB_OUTPUT
+          echo "description=$DESCRIPTION" >> $GITHUB_OUTPUT
 
       - name: Get Full PR Diff
         id: diff
