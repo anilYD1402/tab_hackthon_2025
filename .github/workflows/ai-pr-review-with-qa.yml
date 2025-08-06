@@ -1,4 +1,4 @@
-name: AI PR Review with QA Suggestions
+name: AI PR Review with QA Suggestions + Jira Comment
 
 on:
   pull_request:
@@ -17,21 +17,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Check if PR_COMMENT_TOKEN secret is set
-        run: |
-          if [ -z "${{ secrets.PR_COMMENT_TOKEN }}" ]; then
-            echo "PR_COMMENT_TOKEN secret is NOT set."
-            exit 1
-          else
-            echo "PR_COMMENT_TOKEN secret is available."
-          fi
-
       - name: Get Full PR Diff
         id: diff
         env:
           GITHUB_TOKEN: ${{ secrets.PR_COMMENT_TOKEN }}
         run: |
-          echo "Fetching full PR diff for PR #${{ github.event.pull_request.number }}"
           curl -s -H "Accept: application/vnd.github.v3.diff" \
                -H "Authorization: token $GITHUB_TOKEN" \
                "https://api.github.com/repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}" > pr_diff.txt
@@ -45,7 +35,7 @@ jobs:
           {
             "contents": [{
               "parts": [{
-                "text": "You are a QA lead reviewing a GitHub Pull Request. Based on the provided Base64-encoded PR diff, generate a SHORT and READABLE MANUAL TEST PLAN.\n\nInstructions:\n- Provide ONLY 3 high-priority test cases.\n- Format:\n  - Title: <short>\n  - Steps: <short actions>\n  - Expected: <result>\n- Cover:\n  - Main functional change\n  - One edge case\n  - One regression scenario\n- Keep response concise.\n\nBase64 diff:\nREPLACE_DIFF"
+                "text": "You are a QA lead reviewing a GitHub Pull Request. Based on the provided Base64-encoded PR diff, generate a SHORT and READABLE MANUAL TEST PLAN.\n\nInstructions:\n- Provide a maximum of 3 high-priority test cases only.\n- Write each test in bullet point format:\n  • Title: <short name>\n  • Steps: <brief actions>\n  • Expected: <short expected result>\n- Cover:\n  • Main functional change\n  • One edge case\n  • One regression scenario\n- Keep the response concise.\n\nBase64 diff: REPLACE_DIFF"
               }]
             }]
           }
@@ -58,9 +48,8 @@ jobs:
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
-          echo "Generating condensed QA manual test cases..."
           RESPONSE=$(curl -s -X POST \
-            "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$GEMINI_API_KEY" \
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$GEMINI_API_KEY" \
             -H "Content-Type: application/json" \
             -d @payload.json)
 
@@ -79,7 +68,30 @@ jobs:
               issue_number: context.payload.pull_request.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: `## QA Manual Test Cases\n\n<details>\n<summary>Click to view</summary>\n\n${qaTests}\n\n</details>`
+              body: `## QA Manual Test Cases\n\n${qaTests}`
             });
         env:
           QA_TESTS: ${{ steps.qa.outputs.qa_tests }}
+
+      - name: Post QA Test Cases to Jira
+        if: success()
+        env:
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+          QA_TESTS: ${{ steps.qa.outputs.qa_tests }}
+        run: |
+          ISSUE_KEY=$(echo "${{ github.event.pull_request.title }}" | grep -oE '[A-Za-z]+-[0-9]+' | tr '[:lower:]' '[:upper:]')
+
+          if [ -z "$ISSUE_KEY" ]; then
+            echo "No Jira issue key found in PR title."
+            exit 0
+          fi
+
+          COMMENT_BODY=$(jq -Rs '.' <<< "QA Manual Test Cases:\n\n${QA_TESTS}")
+
+          curl -s -X POST \
+            -H "Content-Type: application/json" \
+            -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
+            --data "{\"body\": $COMMENT_BODY}" \
+            "$JIRA_BASE_URL/rest/api/3/issue/$ISSUE_KEY/comment"
