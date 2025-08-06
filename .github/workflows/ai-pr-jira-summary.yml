@@ -70,6 +70,11 @@ jobs:
           echo "$DESCRIPTION" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
+      - name: Debug Jira Output
+        run: |
+          echo "Debug: Jira description output is ->"
+          echo "${{ steps.jira.outputs.description }}"
+
       - name: Get Full PR Diff
         id: diff
         env:
