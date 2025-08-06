@@ -1,0 +1,59 @@
+name: AI PR Review with QA Suggestions
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  summarize:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Check if PR_COMMENT_TOKEN secret is set
+        run: |
+          if [ -z "${{ secrets.PR_COMMENT_TOKEN }}" ]; then
+            echo "PR_COMMENT_TOKEN secret is NOT set."
+            exit 1
+          else
+            echo "PR_COMMENT_TOKEN secret is available."
+          fi
+
+      - name: Get Full PR Diff
+        id: diff
+        env:
+          GITHUB_TOKEN: ${{ secrets.PR_COMMENT_TOKEN }}
+        run: |
+          echo "Fetching full PR diff for PR #${{ github.event.pull_request.number }}"
+          curl -s -H "Accept: application/vnd.github.v3.diff" \
+               -H "Authorization: token $GITHUB_TOKEN" \
+               "https://api.github.com/repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}" > pr_diff.txt
+
+          if [ $? -ne 0 ]; then
+            echo "Error fetching PR diff."
+            exit 1
+          fi
+
+      - name: Generate QA Manual Test Cases
+        id: qa
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          echo "Generating QA manual test cases..."
+
+          DIFF_CONTENT=$(cat pr_diff.txt)
+          PR_DIFF=$(echo "$DIFF_CONTENT" | base64 -w 0)
+
+          RESPONSE=$(curl -s -X POST "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$GEMINI_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"contents\": [{
+                \"parts\": [{
+                  \"text\": \"Yo
