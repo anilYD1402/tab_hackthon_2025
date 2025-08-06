@@ -36,10 +36,22 @@ jobs:
                -H "Authorization: token $GITHUB_TOKEN" \
                "https://api.github.com/repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}" > pr_diff.txt
 
-          if [ $? -ne 0 ]; then
-            echo "Error fetching PR diff."
-            exit 1
-          fi
+      - name: Prepare Gemini JSON Payload
+        run: |
+          DIFF_CONTENT=$(cat pr_diff.txt)
+          PR_DIFF=$(echo "$DIFF_CONTENT" | base64 -w 0)
+
+          cat > payload.json <<'JSON'
+          {
+            "contents": [{
+              "parts": [{
+                "text": "You are a QA lead reviewing a GitHub Pull Request. Based on the provided Base64-encoded PR diff, generate detailed MANUAL TEST CASES.\n\nInstructions:\n1. Provide at least 5 test cases covering:\n   - Main functional changes\n   - Edge cases (null inputs, invalid data, network errors)\n   - Regression checks for related modules\n2. Each test case should include:\n   - Title\n   - Preconditions\n   - Test steps\n   - Expected results\n3. Write in Markdown format with proper headings.\n\nBase64 diff: REPLACE_DIFF"
+              }]
+            }]
+          }
+          JSON
+
+          sed -i "s|REPLACE_DIFF|$PR_DIFF|g" payload.json
 
       - name: Generate QA Manual Test Cases
         id: qa
@@ -47,13 +59,25 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           echo "Generating QA manual test cases..."
-
-          DIFF_CONTENT=$(cat pr_diff.txt)
-          PR_DIFF=$(echo "$DIFF_CONTENT" | base64 -w 0)
-
-          RESPONSE=$(curl -s -X POST "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$GEMINI_API_KEY" \
+          RESPONSE=$(curl -s -X POST \
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$GEMINI_API_KEY" \
             -H "Content-Type: application/json" \
-            -d "{
-              \"contents\": [{
-                \"parts\": [{
-                  \"text\": \"Yo
+            -d @payload.json)
+
+          QA_TESTS=$(echo "$RESPONSE" | jq -r '.candidates[0].content.parts[0].text')
+          echo "qa_tests<<EOF" >> $GITHUB_OUTPUT
+          echo "$QA_TESTS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Post QA Test Cases as PR Comment
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.PR_COMMENT_TOKEN }}
+          script: |
+            const qaTests = `${{ steps.qa.outputs.qa_tests }}`;
+            github.rest.issues.createComment({
+              issue_number: context.payload.pull_request.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## QA Manual Test Cases\n\n${qaTests}`
+            });
