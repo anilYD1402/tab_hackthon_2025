@@ -44,29 +44,30 @@ jobs:
           echo "----- First 50 lines for preview -----"
           head -n 50 pr_diff.txt
 
-      - name: Fetch Jira Issue Key from PR Title
-        id: jira_key
+      - name: Extract Jira Issue Key
+        id: issue_key
         run: |
           ISSUE_KEY=$(echo "${{ github.event.pull_request.title }}" | grep -oE '[A-Za-z]+-[0-9]+' | tr '[:lower:]' '[:upper:]')
           echo "issue_key=$ISSUE_KEY" >> $GITHUB_OUTPUT
-          echo "Detected Jira Issue Key: $ISSUE_KEY"
 
       - name: Fetch Jira Description
         id: jira
+        env:
+          JIRA_EMAIL: "anil.stpaul142@gmail.com"
+          JIRA_TOKEN: ${{ secrets.JIRA_TOKEN }}
         run: |
-          if [ -n "${{ steps.jira_key.outputs.issue_key }}" ]; then
-            RESPONSE=$(curl -s -X GET \
-              -H "Authorization: Bearer ${{ secrets.JIRA_TOKEN }}" \
-              -H "Accept: application/json" \
-              "https://tusharnigam88.atlassian.net/rest/api/3/issue/${{ steps.jira_key.outputs.issue_key }}")
+          echo "Fetching Jira issue description for ${{ steps.issue_key.outputs.issue_key }}"
+          RESPONSE=$(curl -s -u "$JIRA_EMAIL:$JIRA_TOKEN" \
+            -H "Accept: application/json" \
+            "https://tusharnigam88.atlassian.net/rest/api/3/issue/${{ steps.issue_key.outputs.issue_key }}")
           
-            DESCRIPTION=$(echo "$RESPONSE" | jq -r '.fields.description.content[].content[].text' | tr '\n' ' ')
-            echo "description=$DESCRIPTION" >> $GITHUB_OUTPUT
-            echo "Fetched Jira Description: $DESCRIPTION"
-          else
-            echo "description=" >> $GITHUB_OUTPUT
-            echo "No Jira issue key found."
-          fi
+          echo "----- RAW JIRA RESPONSE -----"
+          echo "$RESPONSE"
+
+          DESCRIPTION=$(echo "$RESPONSE" | jq -r '.fields.description.content[]?.content[]?.text' | tr '\n' ' ')
+          echo "description<<EOF" >> $GITHUB_OUTPUT
+          echo "$DESCRIPTION" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Check PR Size
         id: pr_size
@@ -90,24 +91,17 @@ jobs:
           echo "Generating class-wise AI review..."
 
           DIFF_CONTENT=$(cat pr_diff.txt)
-          PR_DIFF=$(echo "$DIFF_CONTENT" | base64 -w 0)
           JIRA_DESC="${{ steps.jira.outputs.description }}"
 
-          RESPONSE=$(curl -s -X POST "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$GEMINI_API_KEY" \
+          PR_DIFF=$(echo "$DIFF_CONTENT" | base64 -w 0)
+          DESCRIPTION=$(echo "$JIRA_DESC" | base64 -w 0)
+
+          RESPONSE=$(curl -s -X POST "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$GEMINI_API_KEY" \
             -H "Content-Type: application/json" \
             -d "{
               \"contents\": [{
                 \"parts\": [{
-                  \"text\": \"You are a senior Flutter reviewer. Decode the base64 diff and use the Jira description to generate a PR review.\\n
-                  ### Jira Description:\\n$JIRA_DESC\\n
-                  ### Instructions:\\n
-                  - Split feedback by each class and file separately.\\n
-                  - For each class, describe:\\n
-                    * Purpose\\n
-                    * Changes made\\n
-                    * Potential issues or risks\\n
-                    * Testing notes\\n
-                  ### Base64 diff:\\n$PR_DIFF\"
+                  \"text\": \"You are a senior Flutter reviewer. Decode the base64 PR diff and Jira description. Merge them to generate a review:\n\nBase64 PR diff:\n$PR_DIFF\n\nBase64 Jira Description:\n$DESCRIPTION\n\nFor each class, describe:\n- Purpose\n- Changes made\n- Potential issues or risks\n- Testing notes\nOutput in Markdown with headings for each file and class.\"
                 }]
               }]
             }")
@@ -123,20 +117,15 @@ jobs:
           echo "$SUMMARY" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
-      - name: Debug AI Output
-        run: |
-          echo "AI Summary Output:"
-          echo "${{ steps.ai.outputs.summary }}"
-
       - name: Post Class-Wise Review as PR Comment
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.PR_COMMENT_TOKEN }}
           script: |
             const summary = `${{ steps.ai.outputs.summary }}`;
-            github.rest.issues.createComment({
+            await github.rest.issues.createComment({
               issue_number: context.payload.pull_request.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: `### 🧠 AI PR Review (Class-Wise with Jira Context)\n\n${summary}`
+              body: "### 🧠 AI PR Review (Class-Wise with Jira Context)\n\n" + summary
             });
