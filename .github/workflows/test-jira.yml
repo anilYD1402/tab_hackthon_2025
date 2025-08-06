@@ -1,10 +1,13 @@
 name: Test Jira Description Extraction
 
 on:
-  workflow_dispatch:
+  pull_request:
+    types: [opened, synchronize, reopened]
 
 permissions:
   contents: read
+  pull-requests: write
+  issues: write
 
 jobs:
   test-jira:
