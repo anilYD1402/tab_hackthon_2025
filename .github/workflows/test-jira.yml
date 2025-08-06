@@ -20,7 +20,7 @@ jobs:
       - name: Extract Jira Description
         id: jira
         env:
-          JIRA_TOKEN: ${{ secrets.JIRA_TOKEN }}
+          JIRA_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
           JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
         run: |
           ISSUE_KEY="SCRUM-3"
