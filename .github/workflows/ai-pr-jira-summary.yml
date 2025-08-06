@@ -42,10 +42,32 @@ jobs:
           echo "Fetching Jira issue description for ${{ steps.extract.outputs.issue_key }}"
           RESPONSE=$(curl -s -u $JIRA_EMAIL:$JIRA_TOKEN \
             -X GET "https://tusharnigam88.atlassian.net/rest/api/3/issue/${{ steps.extract.outputs.issue_key }}")
-          
-          DESCRIPTION=$(echo "$RESPONSE" | jq -r '.fields.description.content[]?.content[]?.text' | tr '\n' ' ')
-          echo "Jira Description: $DESCRIPTION"
-          echo "description=$DESCRIPTION" >> $GITHUB_OUTPUT
+
+          echo "----- RAW Jira API Response (first 1000 chars) -----"
+          echo "$RESPONSE" | head -c 1000
+
+          DESCRIPTION=$(echo "$RESPONSE" | jq -r '
+            def walkContent:
+              if type == "array" then
+                map(walkContent) | join("\n")
+              elif type == "object" then
+                if .type == "text" then .text
+                elif .type == "bulletList" then (.content | map("- " + (walkContent)) | join("\n"))
+                elif .type == "paragraph" then (.content | walkContent) + "\n"
+                elif .type == "listItem" then (.content | walkContent)
+                elif .content then (.content | walkContent)
+                else empty end
+              else empty end;
+
+            .fields.description | walkContent
+          ')
+
+          echo "----- Parsed Jira Description -----"
+          echo "$DESCRIPTION"
+
+          echo "description<<EOF" >> $GITHUB_OUTPUT
+          echo "$DESCRIPTION" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Get Full PR Diff
         id: diff
@@ -99,8 +121,7 @@ jobs:
                   - 🧪 Suggest **manual test cases** a QA/dev can perform to validate the changes.
                   - ⚠️ Mention **impact areas or other modules** that might be affected.
           
-                  Jira Ticket Context: $JIRA_DESCRIPTION
-          
+                  Jira Ticket Context:\n\n$JIRA_DESCRIPTION\n\n
                   Base64-encoded PR Diff:\n\n$PR_DIFF\"
                 }]
               }]
