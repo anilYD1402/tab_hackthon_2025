@@ -1,0 +1,134 @@
+name: AI PR Review Summary
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  summarize:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Check if PR_COMMENT_TOKEN secret is set
+        run: |
+          if [ -z "${{ secrets.PR_COMMENT_TOKEN }}" ]; then
+            echo "PR_COMMENT_TOKEN secret is NOT set."
+            exit 1
+          else
+            echo "PR_COMMENT_TOKEN secret is available."
+          fi
+
+      - name: Extract Jira Issue Key
+        id: extract
+        run: |
+          ISSUE_KEY=$(echo "${{ github.event.pull_request.title }}" | grep -oE '[A-Za-z]+-[0-9]+' | tr '[:lower:]' '[:upper:]')
+          echo "Extracted Jira Issue Key: $ISSUE_KEY"
+          echo "issue_key=$ISSUE_KEY" >> $GITHUB_OUTPUT
+
+      - name: Get Jira Issue Description
+        id: jira
+        env:
+          JIRA_TOKEN: ${{ secrets.JIRA_TOKEN }}
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+        run: |
+          echo "Fetching Jira issue description for ${{ steps.extract.outputs.issue_key }}"
+          RESPONSE=$(curl -s -u $JIRA_EMAIL:$JIRA_TOKEN \
+            -X GET "https://tusharnigam88.atlassian.net/rest/api/3/issue/${{ steps.extract.outputs.issue_key }}")
+          
+          DESCRIPTION=$(echo "$RESPONSE" | jq -r '.fields.description.content[]?.content[]?.text' | tr '\n' ' ')
+          echo "Jira Description: $DESCRIPTION"
+          echo "description=$DESCRIPTION" >> $GITHUB_OUTPUT
+
+      - name: Get Full PR Diff
+        id: diff
+        env:
+          GITHUB_TOKEN: ${{ secrets.PR_COMMENT_TOKEN }}
+        run: |
+          echo "Fetching full PR diff for PR #${{ github.event.pull_request.number }}"
+          curl -s -H "Accept: application/vnd.github.v3.diff" \
+               -H "Authorization: token $GITHUB_TOKEN" \
+               "https://api.github.com/repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}" > pr_diff.txt
+
+          echo "----- First 50 lines for preview -----"
+          head -n 50 pr_diff.txt
+
+      - name: Check PR Size
+        id: pr_size
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.PR_COMMENT_TOKEN }}
+          script: |
+            const { data: pullRequest } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.payload.pull_request.number,
+            });
+            core.setOutput("changed_files", pullRequest.changed_files);
+
+      - name: Generate Semantic AI Review with Jira Context
+        id: ai
+        if: steps.pr_size.outputs.changed_files <= 100
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          echo "Generating semantic AI review with Jira context..."
+
+          DIFF_CONTENT=$(cat pr_diff.txt)
+          PR_DIFF=$(echo "$DIFF_CONTENT" | base64 -w 0)
+          JIRA_DESCRIPTION="${{ steps.jira.outputs.description }}"
+
+          RESPONSE=$(curl -s -X POST "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$GEMINI_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"contents\": [{
+                \"parts\": [{
+                  \"text\": \"You are a senior Flutter reviewer. Analyze only the **important semantic changes** in this PR.
+                  - Ignore formatting-only or non-functional/lint-related changes.
+          
+                  For each changed file or module:
+                  - ✅ Provide a concise **summary of what was done** (functional/architectural only).
+                  - 🎯 Explain **what changed vs the original code** in the context of the Jira ticket.
+                  - 🧪 Suggest **manual test cases** a QA/dev can perform to validate the changes.
+                  - ⚠️ Mention **impact areas or other modules** that might be affected.
+          
+                  Jira Ticket Context: $JIRA_DESCRIPTION
+          
+                  Base64-encoded PR Diff:\n\n$PR_DIFF\"
+                }]
+              }]
+            }")
+
+          SUMMARY=$(echo "$RESPONSE" | jq -r '.candidates[0].content.parts[0].text')
+          echo "----- Extracted Summary -----"
+          echo "$SUMMARY"
+
+          echo "summary<<EOF" >> $GITHUB_OUTPUT
+          echo "$SUMMARY" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Post Semantic Review as PR Comment
+        uses: actions/github-script@v7
+        env:
+          REVIEW_SUMMARY: ${{ steps.ai.outputs.summary }}
+        with:
+          github-token: ${{ secrets.PR_COMMENT_TOKEN }}
+          script: |
+            const summary = process.env.REVIEW_SUMMARY;
+            if (!summary || summary.trim() === "null") {
+              core.setFailed("Summary is empty. Skipping PR comment.");
+            } else {
+              await github.rest.issues.createComment({
+                issue_number: context.payload.pull_request.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: "### 🧠 AI Semantic PR Review with Jira Context\n\n" + summary
+              });
+            }
