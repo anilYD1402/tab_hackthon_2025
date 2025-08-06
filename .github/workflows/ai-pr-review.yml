@@ -35,14 +35,32 @@ jobs:
           curl -s -H "Accept: application/vnd.github.v3.diff" \
                -H "Authorization: token $GITHUB_TOKEN" \
                "https://api.github.com/repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}" > pr_diff.txt
-
-          if [ $? -ne 0 ]; then
-            echo "Error fetching PR diff."
-            exit 1
-          fi
-
-          echo "----- First 50 lines for preview -----"
           head -n 50 pr_diff.txt
+
+      - name: Extract Jira Issue Key
+        id: jira_key
+        run: |
+          ISSUE_KEY=$(echo "${{ github.event.pull_request.title }}" | grep -oE '[A-Za-z]+-[0-9]+' | tr '[:lower:]' '[:upper:]')
+          echo "Extracted Jira Issue Key: $ISSUE_KEY"
+          echo "key=$ISSUE_KEY" >> $GITHUB_OUTPUT
+
+      - name: Fetch Jira Description
+        id: jira
+        env:
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_TOKEN: ${{ secrets.JIRA_TOKEN }}
+        run: |
+          echo "Fetching description for Jira issue: ${{ steps.jira_key.outputs.key }}"
+          RESPONSE=$(curl -s -u $JIRA_EMAIL:$JIRA_TOKEN \
+            -X GET \
+            -H "Accept: application/json" \
+            "https://tusharnigam88.atlassian.net/rest/api/3/issue/${{ steps.jira_key.outputs.key }}")
+          
+          # Parse Atlassian doc format into plain text
+          DESCRIPTION=$(echo "$RESPONSE" | jq -r '.fields.description.content[].content[].text' | tr '\n' ' ')
+          echo "jira_description<<EOF" >> $GITHUB_OUTPUT
+          echo "$DESCRIPTION" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Check PR Size
         id: pr_size
@@ -57,49 +75,31 @@ jobs:
             });
             core.setOutput("changed_files", pullRequest.changed_files);
 
-      - name: Generate Class-Wise AI Review
+      - name: Generate Class-Wise AI Review (with Jira Description)
         id: ai
         if: steps.pr_size.outputs.changed_files <= 100
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
-          echo "Generating class-wise AI review..."
+          echo "Generating class-wise AI review with Jira description..."
 
           DIFF_CONTENT=$(cat pr_diff.txt)
-
-          # Encode full diff without truncation
           PR_DIFF=$(echo "$DIFF_CONTENT" | base64 -w 0)
+          JIRA_DESCRIPTION="${{ steps.jira.outputs.jira_description }}"
+
+          REQUEST_BODY=$(jq -n --arg desc "$JIRA_DESCRIPTION" --arg diff "$PR_DIFF" '{
+            contents: [{
+              parts: [{
+                text: "You are a senior Flutter reviewer. Use the provided Jira description and PR diff to generate feedback.\nFor each class, describe:\n- Purpose\n- Changes made\n- Potential issues or risks\n- Testing notes\nOutput in Markdown with headings for each file and class.\n\nJira Description:\n\($desc)\n\nBase64 PR Diff:\n\($diff)"
+              }]
+            }]
+          }')
 
           RESPONSE=$(curl -s -X POST "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$GEMINI_API_KEY" \
             -H "Content-Type: application/json" \
-            -d "{
-              \"contents\": [{
-                \"parts\": [{
-                  \"text\": \"You are a senior Flutter reviewer. Decode the base64 diff and:
-                  1. Split feedback by each class and file separately.
-                  2. For each class, describe:
-                     - Purpose
-                     - Changes made
-                     - Potential issues or risks
-                     - Testing notes
-                  3. Output in Markdown with headings for each file and class.
-                  Base64 diff:\n\n$PR_DIFF\"
-                }]
-              }]
-            }")
-
-          if [ $? -ne 0 ]; then
-            echo "Error generating AI review."
-            exit 1
-          fi
-
-          echo "----- RAW GEMINI RESPONSE -----"
-          echo "$RESPONSE"
+            -d "$REQUEST_BODY")
 
           SUMMARY=$(echo "$RESPONSE" | jq -r '.candidates[0].content.parts[0].text')
-          echo "----- Extracted Summary -----"
-          echo "$SUMMARY"
-
           echo "summary<<EOF" >> $GITHUB_OUTPUT
           echo "$SUMMARY" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
@@ -114,7 +114,7 @@ jobs:
               issue_number: context.payload.pull_request.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: `### 🧠 AI PR Review (Class-Wise)\n\n${summary}`
+              body: `### 🧠 AI PR Review (Class-Wise with Jira Context)\n\n${summary}`
             });
         env:
           SUMMARY: ${{ steps.ai.outputs.summary }}
