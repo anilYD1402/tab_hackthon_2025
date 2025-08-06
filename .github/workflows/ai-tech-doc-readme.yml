@@ -2,7 +2,8 @@ name: Auto-Generate Tech Docs
 
 on:
   pull_request:
-    types: [opened,reopened]
+    types: [closed]
+  workflow_dispatch: # ✅ Manual trigger for already merged PRs
 
 permissions:
   contents: write
@@ -11,7 +12,8 @@ permissions:
 
 jobs:
   generate-docs:
-    if: github.event.pull_request.merged == true
+    # ✅ Ensure it runs only when PR is merged
+    if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
 
     steps:
@@ -21,8 +23,16 @@ jobs:
       - name: Extract Jira Issue Key
         id: extract
         run: |
-          ISSUE_KEY=$(echo "${{ github.event.pull_request.title }}" | grep -oE '[A-Za-z]+-[0-9]+' | tr '[:lower:]' '[:upper:]')
-          echo "Extracted Jira Key: $ISSUE_KEY"
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "Manual run - please provide ISSUE_KEY as input in dispatch"
+            exit 1
+          fi
+
+          ISSUE_KEY=$(echo "${{ github.event.pull_request.title }}" \
+            | grep -oE '[A-Za-z]+-[0-9]+' \
+            | tr '[:lower:]' '[:upper:]')
+          
+          echo "Extracted Jira Issue Key: $ISSUE_KEY"
           echo "issue_key=$ISSUE_KEY" >> $GITHUB_OUTPUT
 
       - name: Get Jira Details
@@ -34,7 +44,8 @@ jobs:
           RESPONSE=$(curl -s -u $JIRA_EMAIL:$JIRA_TOKEN \
             -X GET "https://yourcompany.atlassian.net/rest/api/3/issue/${{ steps.extract.outputs.issue_key }}")
 
-          TITLE=$(echo "$RESPONSE" | jq -r '.fields.summary // "No title"')
+          echo "----- RAW Jira API Response (first 500 chars) -----"
+          echo "$RESPONSE" | head -c 500
 
           DESCRIPTION=$(echo "$RESPONSE" | jq -r '
             def walkContent:
@@ -45,15 +56,14 @@ jobs:
                 elif .content then (.content | walkContent)
                 else empty end
               else empty end;
+            .fields.description | walkContent
+          ' | tr '\n' ' ')
 
-            if .fields.description? then
-              .fields.description | walkContent
-            else
-              "No Jira description provided."
-            end
-          ')
-
+          TITLE=$(echo "$RESPONSE" | jq -r '.fields.summary // "No Title"')
           STATUS=$(echo "$RESPONSE" | jq -r '.fields.status.name // "Unknown"')
+
+          echo "Parsed Jira Title: $TITLE"
+          echo "Parsed Jira Status: $STATUS"
 
           echo "title=$TITLE" >> $GITHUB_OUTPUT
           echo "description=$DESCRIPTION" >> $GITHUB_OUTPUT
@@ -64,11 +74,12 @@ jobs:
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
-          DIFF=$(curl -s -H "Accept: application/vnd.github.v3.diff" \
-               -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-               "https://api.github.com/repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}")
+          DIFF=$(curl -s \
+            -H "Accept: application/vnd.github.v3.diff" \
+            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}")
 
-          PR_LINK="https://github.com/${{ github.repository }}/pull/${{ github.event.pull_request.number }}"
+          echo "Generating Tech Doc via Gemini..."
 
           RESPONSE=$(curl -s -X POST \
             "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$GEMINI_API_KEY" \
@@ -76,43 +87,47 @@ jobs:
             -d "{
               \"contents\": [{
                 \"parts\": [{
-                  \"text\": \"Create a Markdown technical doc entry based on:
+                  \"text\": \"Generate a technical documentation section based on:
                   - Jira Title: ${{ steps.jira.outputs.title }}
                   - Jira Description: ${{ steps.jira.outputs.description }}
-                  - Jira Status: ${{ steps.jira.outputs.status }}
-                  - PR Link: $PR_LINK
+                  - Status: ${{ steps.jira.outputs.status }}
                   - PR Diff: $DIFF
 
-                  Output:
-                  ## 🚀 Feature: <Title>
-                  - **Jira Ticket**: <Key>
-                  - **Status**: <Status>
-                  - **Summary**: <Summary>
-                  - **Implementation Details**
-                  - **API/Code Changes**
-                  - **Testing Instructions**
-                  - **Related PR**: [Link]
-                  \"
+                  Provide a well-structured **Markdown** update for README:
+                  ## Feature: <Title>
+                  ### Jira Details
+                  - **Ticket:** ${{ steps.extract.outputs.issue_key }}
+                  - **Status:** ${{ steps.jira.outputs.status }}
+
+                  ### Summary
+                  - Implementation details and purpose.
+
+                  ### API Changes
+                  - List any API modifications.
+
+                  ### Test Cases
+                  - Steps QA can follow to test.
+
+                  ### PR Link
+                  - GitHub PR reference.\"
                 }]
               }]
             }")
 
-          SUMMARY=$(echo "$RESPONSE" | jq -r '.candidates[0].content.parts[0].text')
+          echo "----- RAW AI RESPONSE -----"
+          echo "$RESPONSE"
+
+          SUMMARY=$(echo "$RESPONSE" | jq -r '.candidates[0].content.parts[0].text // "No content generated."')
+          
           echo "doc<<EOF" >> $GITHUB_OUTPUT
           echo "$SUMMARY" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Update README
         run: |
-          ENTRY_EXISTS=$(grep -c "${{ steps.extract.outputs.issue_key }}" README.md || true)
-          
-          if [ "$ENTRY_EXISTS" -eq 0 ]; then
-            echo -e "\n${{ steps.ai.outputs.doc }}" >> README.md
-            git config user.name "github-actions"
-            git config user.email "actions@github.com"
-            git add README.md
-            git commit -m "docs: update tech doc for ${{ steps.extract.outputs.issue_key }}"
-            git push
-          else
-            echo "✅ README already contains documentation for this Jira ticket. Skipping append."
-          fi
+          echo "${{ steps.ai.outputs.doc }}" >> README.md
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add README.md
+          git commit -m "docs: update tech doc for ${{ steps.extract.outputs.issue_key }}"
+          git push
