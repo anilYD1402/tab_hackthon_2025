@@ -1,24 +1,46 @@
-name: Test Jira Extraction
+name: Test Jira Description Extraction
+
 on:
-  pull_request:
-    types: [opened, synchronize, reopened]
+  workflow_dispatch:
 
 permissions:
   contents: read
-  pull-requests: write
-  issues: write
 
 jobs:
-  test:
+  test-jira:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Test Jira Description Parsing
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Extract Jira Description
+        id: jira
+        env:
+          JIRA_TOKEN: ${{ secrets.JIRA_TOKEN }}
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
         run: |
-          echo '<paste-json-here>' > jira_sample.json
-          DESCRIPTION=$(jq -r '
+          ISSUE_KEY="SCRUM-3"
+          echo "Fetching Jira issue description for $ISSUE_KEY"
+
+          RESPONSE=$(curl -s -u $JIRA_EMAIL:$JIRA_TOKEN \
+            -X GET "https://tusharnigam88.atlassian.net/rest/api/3/issue/$ISSUE_KEY")
+
+          echo "----- RAW Jira API Response (first 1000 chars) -----"
+          echo "$RESPONSE" | head -c 1000
+
+          DESCRIPTION=$(echo "$RESPONSE" | jq -r '
             def walkContent:
               .[] | if .content then (.content | walkContent) else .text end;
             .fields.description.content | walkContent
-          ' jira_sample.json | tr '\n' ' ')
-          echo "Extracted Description:"
+          ' | tr '\n' ' ')
+
+          echo "----- Parsed Jira Description -----"
           echo "$DESCRIPTION"
+
+          echo "description=$DESCRIPTION" >> $GITHUB_OUTPUT
+
+      - name: Print Output
+        run: |
+          echo "Final extracted description:"
+          echo "${{ steps.jira.outputs.description }}"
