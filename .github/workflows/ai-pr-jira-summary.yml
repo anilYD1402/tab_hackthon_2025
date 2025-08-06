@@ -43,16 +43,32 @@ jobs:
           RESPONSE=$(curl -s -u $JIRA_EMAIL:$JIRA_TOKEN \
             -X GET "https://tusharnigam88.atlassian.net/rest/api/3/issue/${{ steps.extract.outputs.issue_key }}")
           
-          echo "Full Jira Response:"
-          echo "$RESPONSE" | jq '.fields.description' || true
+          echo "----- RAW Jira API Response (first 1000 chars) -----"
+          echo "$RESPONSE" | head -c 1000
 
           DESCRIPTION=$(echo "$RESPONSE" | jq -r '
             def walkContent:
-              .[] | if .content then (.content | walkContent) else .text end;
-            .fields.description.content | walkContent
-          ' | tr '\n' ' ')
-          echo "Jira Description: $DESCRIPTION"
-          echo "description=$DESCRIPTION" >> $GITHUB_OUTPUT
+              if type == "array" then
+                map(walkContent) | join("\n")
+              elif type == "object" then
+                if .type == "text" then .text
+                elif .type == "bulletList" then (.content | map("- " + (walkContent)) | join("\n"))
+                elif .type == "paragraph" then (.content | walkContent) + "\n"
+                elif .type == "listItem" then (.content | walkContent)
+                elif .content then (.content | walkContent)
+                else empty end
+              else empty end;
+
+            .fields.description | walkContent
+          ')
+
+          echo "----- Parsed Jira Description -----"
+          echo "$DESCRIPTION"
+
+          # ✅ Multi-line safe output
+          echo "description<<EOF" >> $GITHUB_OUTPUT
+          echo "$DESCRIPTION" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Get Full PR Diff
         id: diff
@@ -89,6 +105,7 @@ jobs:
           echo "Generating semantic AI review with Jira context..."
 
           DIFF_CONTENT=$(cat pr_diff.txt)
+          PR_DIFF=$(echo "$DIFF_CONTENT" | base64 -w 0)
           JIRA_DESCRIPTION="${{ steps.jira.outputs.description }}"
 
           RESPONSE=$(curl -s -X POST \
@@ -98,21 +115,17 @@ jobs:
               \"contents\": [{
                 \"role\": \"user\",
                 \"parts\": [{
-                  \"text\": \"Analyze the important, semantic changes only in code:
-                  - What functional or architectural changes were made?
+                  \"text\": \"You are a senior Flutter reviewer. Analyze only the **important semantic changes** in this PR.
                   - Ignore formatting-only or non-functional/lint-related changes.
+          
                   For each changed file or module:
-                  - Show what changed and why it changed in the context of the Jira ticket.
-                  Produce:
-                  - ✅ A concise summary of what was done.
-                  - 🎯 Explain what changed vs original code (semantic only).
-                  - 🧪 Provide manual test cases or test suggestions a QA/dev can perform.
-                  - ⚠️ Mention impact areas or modules that could be affected.
-
-                  Jira Description: $JIRA_DESCRIPTION
-
-                  PR Diff:
-                  $DIFF_CONTENT\"
+                  - ✅ Provide a concise **summary of what was done** (functional/architectural only).
+                  - 🎯 Explain **what changed vs the original code** in the context of the Jira ticket.
+                  - 🧪 Suggest **manual test cases** a QA/dev can perform to validate the changes.
+                  - ⚠️ Mention **impact areas or other modules** that might be affected.
+          
+                  Jira Ticket Context:\n\n$JIRA_DESCRIPTION\n\n
+                  Base64-encoded PR Diff:\n\n$PR_DIFF\"
                 }]
               }]
             }")
@@ -146,6 +159,6 @@ jobs:
                 issue_number: context.payload.pull_request.number,
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                body: "### 🧠 AI PR Review (Semantic + Jira Context)\n\n" + summary
+                body: "### 🧠 AI Semantic PR Review with Jira Context\n\n" + summary
               });
             }
