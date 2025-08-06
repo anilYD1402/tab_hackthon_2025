@@ -1,0 +1,18 @@
+name: Test Jira Extraction
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Test Jira Description Parsing
+        run: |
+          echo '<paste-json-here>' > jira_sample.json
+          DESCRIPTION=$(jq -r '
+            def walkContent:
+              .[] | if .content then (.content | walkContent) else .text end;
+            .fields.description.content | walkContent
+          ' jira_sample.json | tr '\n' ' ')
+          echo "Extracted Description:"
+          echo "$DESCRIPTION"
