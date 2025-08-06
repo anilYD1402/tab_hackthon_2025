@@ -11,6 +11,22 @@ class SettingsScreen extends StatelessWidget {
     // TODO: Navigate to About screen
   }
 
+  void _navigateToNotifications(BuildContext context) {
+    // TODO: Navigate to Notifications screen
+  }
+
+  void _navigateToLanguage(BuildContext context) {
+    // TODO: Navigate to Language selection screen
+  }
+
+  void _navigateToPrivacyPolicy(BuildContext context) {
+    // TODO: Navigate to Privacy Policy screen
+  }
+
+  void _navigateToHelpSupport(BuildContext context) {
+    // TODO: Navigate to Help & Support screen
+  }
+
   void _logout(BuildContext context) {
     // TODO: Show confirmation and handle logout
   }
@@ -18,13 +34,33 @@ class SettingsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Settings')),
+      appBar: AppBar(title: const Text('Settings')),
       body: ListView(
         children: [
           ListTile(
-            leading: Icon(Icons.person),
+            leading: const Icon(Icons.person),
             title: const Text('Profile'),
             onTap: () => _navigateToProfile(context),
+          ),
+          ListTile(
+            leading: const Icon(Icons.notifications),
+            title: const Text('Notifications'),
+            onTap: () => _navigateToNotifications(context),
+          ),
+          ListTile(
+            leading: const Icon(Icons.language),
+            title: const Text('Language'),
+            onTap: () => _navigateToLanguage(context),
+          ),
+          ListTile(
+            leading: const Icon(Icons.privacy_tip_outlined),
+            title: const Text('Privacy Policy'),
+            onTap: () => _navigateToPrivacyPolicy(context),
+          ),
+          ListTile(
+            leading: const Icon(Icons.help_outline),
+            title: const Text('Help & Support'),
+            onTap: () => _navigateToHelpSupport(context),
           ),
           ListTile(
             leading: const Icon(Icons.info_outline),
