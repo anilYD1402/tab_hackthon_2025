@@ -36,7 +36,7 @@ jobs:
       - name: Get Jira Issue Description
         id: jira
         env:
-          JIRA_TOKEN: ${{ secrets.JIRA_TOKEN }}
+          JIRA_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
           JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
         run: |
           echo "Fetching Jira issue description for ${{ steps.extract.outputs.issue_key }}"
