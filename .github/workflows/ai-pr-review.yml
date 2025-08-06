@@ -82,7 +82,6 @@ jobs:
                      - Changes made
                      - Potential issues or risks
                      - Testing notes
-                     - Suggested code improvements (with code snippets).
                   3. Output in Markdown with headings for each file and class.
                   Base64 diff:\n\n$PR_DIFF\"
                 }]
