@@ -1,0 +1,83 @@
+name: AI PR Review with MCP Context
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  summarize:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Start Local MCP Server
+        run: |
+          nohup mcp-server-github \
+            --token ${{ secrets.PR_COMMENT_TOKEN }} \
+            --repo ${{ github.repository }} > mcp.log 2>&1 &
+
+      - name: Install MCP Client
+        run: npm install -g @modelcontextprotocol/client-cli
+
+      - name: Fetch Past PR Context
+        id: mcp
+        run: |
+          CONTEXT=$(mcp-client-cli call github get-pull-request-context \
+            --pr ${{ github.event.pull_request.number }})
+          echo "context=$CONTEXT" >> $GITHUB_OUTPUT
+
+      - name: Get Full PR Diff
+        run: |
+          curl -s -H "Accept: application/vnd.github.v3.diff" \
+               -H "Authorization: token ${{ secrets.PR_COMMENT_TOKEN }}" \
+               "https://api.github.com/repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}" \
+               > pr_diff.txt
+
+      - name: Generate AI Summary with Context
+        id: ai
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          DIFF=$(cat pr_diff.txt | base64 -w 0)
+          PAST_CONTEXT=$(echo "${{ steps.mcp.outputs.context }}" | base64 -w 0)
+
+          RESPONSE=$(curl -s -X POST \
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$GEMINI_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"contents\": [{
+                \"parts\": [{
+                  \"text\": \"You are a senior Flutter reviewer. Use both current and past PR context.
+                  Current PR (base64): $DIFF
+                  Past PR context (base64): $PAST_CONTEXT
+                  Analyze class-wise changes, highlight risks, and suggest code improvements.\"
+                }]
+              }]
+            }")
+
+          SUMMARY=$(echo "$RESPONSE" | jq -r '.candidates[0].content.parts[0].text')
+          echo "summary<<EOF" >> $GITHUB_OUTPUT
+          echo "$SUMMARY" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Post AI Summary as PR Comment
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.PR_COMMENT_TOKEN }}
+          script: |
+            const summary = process.env.SUMMARY;
+            github.rest.issues.createComment({
+              issue_number: context.payload.pull_request.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `### 🧠 AI PR Review with MCP Context\n\n${summary}`
+            });
+        env:
+          SUMMARY: ${{ steps.ai.outputs.summary }}
