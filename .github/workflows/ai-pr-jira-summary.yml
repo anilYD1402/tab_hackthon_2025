@@ -43,27 +43,9 @@ jobs:
           RESPONSE=$(curl -s -u $JIRA_EMAIL:$JIRA_TOKEN \
             -X GET "https://tusharnigam88.atlassian.net/rest/api/3/issue/${{ steps.extract.outputs.issue_key }}")
           
-          DESCRIPTION=$(echo "$RESPONSE" | jq -r '
-            def walkText(level):
-              if type == "array" then
-                map(walkText(level)) | join("\n")
-              elif type == "object" then
-                if .type == "text" then .text
-                elif .type == "paragraph" then (.content | walkText(level)) + "\n"
-                elif .type == "bulletList" then (.content | map("- " + (walkText(level+1))) | join("\n")) + "\n"
-                elif .type == "listItem" then (.content | walkText(level))
-                elif .content then (.content | walkText(level))
-                else empty end
-              else empty end;
-
-            .fields.description | walkText(0)
-          ')
-
-          echo "----- Clean Jira Description -----"
-          echo "$DESCRIPTION"
-          echo "description<<EOF" >> $GITHUB_OUTPUT
-          echo "$DESCRIPTION" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          DESCRIPTION=$(echo "$RESPONSE" | jq -r '.fields.description.content[]?.content[]?.text' | tr '\n' ' ')
+          echo "Jira Description: $DESCRIPTION"
+          echo "description=$DESCRIPTION" >> $GITHUB_OUTPUT
 
       - name: Get Full PR Diff
         id: diff
@@ -117,7 +99,8 @@ jobs:
                   - 🧪 Suggest **manual test cases** a QA/dev can perform to validate the changes.
                   - ⚠️ Mention **impact areas or other modules** that might be affected.
           
-                  Jira Ticket Context:\n\n$JIRA_DESCRIPTION\n\n
+                  Jira Ticket Context: $JIRA_DESCRIPTION
+          
                   Base64-encoded PR Diff:\n\n$PR_DIFF\"
                 }]
               }]
@@ -140,4 +123,12 @@ jobs:
           script: |
             const summary = process.env.REVIEW_SUMMARY;
             if (!summary || summary.trim() === "null") {
-              core.setFailed("Summary is e
+              core.setFailed("Summary is empty. Skipping PR comment.");
+            } else {
+              await github.rest.issues.createComment({
+                issue_number: context.payload.pull_request.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: "### 🧠 AI Semantic PR Review with Jira Context\n\n" + summary
+              });
+            }
