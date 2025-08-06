@@ -65,15 +65,8 @@ jobs:
           echo "----- Parsed Jira Description -----"
           echo "$DESCRIPTION"
 
-          # ✅ Multi-line safe output
-          echo "description<<EOF" >> $GITHUB_OUTPUT
-          echo "$DESCRIPTION" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
-      - name: Debug Jira Output
-        run: |
-          echo "Debug: Jira description output is ->"
-          echo "${{ steps.jira.outputs.description }}"
+          # ✅ Store as single-line to avoid output truncation
+          echo "description=$(echo "$DESCRIPTION" | sed ':a;N;$!ba;s/\n/ /g')" >> $GITHUB_OUTPUT
 
       - name: Get Full PR Diff
         id: diff
