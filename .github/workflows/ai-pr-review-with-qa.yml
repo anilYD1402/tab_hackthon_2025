@@ -75,11 +75,11 @@ jobs:
 
           echo "Extracted Jira Issue Key: $ISSUE_KEY"
 
-          COMMENT_BODY=$(jq -Rs '.' <<< "QA Manual Test Cases:\n\n${QA_TESTS}")
+          COMMENT_BODY=$(echo "QA Manual Test Cases (auto-generated):\n\n${QA_TESTS}" | jq -Rsa .)
 
           echo "Posting QA test cases to Jira issue: $ISSUE_KEY"
           curl -Ls -X POST \
             -H "Content-Type: application/json" \
             -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
             --data "{\"body\": $COMMENT_BODY}" \
-            "$JIRA_BASE_
+            "$JIRA_BASE_URL/rest/api/3/issue/$ISSUE_KEY/comment"
