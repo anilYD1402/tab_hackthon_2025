@@ -42,32 +42,17 @@ jobs:
           echo "Fetching Jira issue description for ${{ steps.extract.outputs.issue_key }}"
           RESPONSE=$(curl -s -u $JIRA_EMAIL:$JIRA_TOKEN \
             -X GET "https://tusharnigam88.atlassian.net/rest/api/3/issue/${{ steps.extract.outputs.issue_key }}")
-
-          echo "----- RAW Jira API Response (first 1000 chars) -----"
-          echo "$RESPONSE" | head -c 1000
+          
+          echo "Full Jira Response:"
+          echo "$RESPONSE" | jq '.fields.description' || true
 
           DESCRIPTION=$(echo "$RESPONSE" | jq -r '
             def walkContent:
-              if type == "array" then
-                map(walkContent) | join("\n")
-              elif type == "object" then
-                if .type == "text" then .text
-                elif .type == "bulletList" then (.content | map("- " + (walkContent)) | join("\n"))
-                elif .type == "paragraph" then (.content | walkContent) + "\n"
-                elif .type == "listItem" then (.content | walkContent)
-                elif .content then (.content | walkContent)
-                else empty end
-              else empty end;
-
-            .fields.description | walkContent
-          ')
-
-          echo "----- Parsed Jira Description -----"
-          echo "$DESCRIPTION"
-
-          echo "description<<EOF" >> $GITHUB_OUTPUT
-          echo "$DESCRIPTION" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+              .[] | if .content then (.content | walkContent) else .text end;
+            .fields.description.content | walkContent
+          ' | tr '\n' ' ')
+          echo "Jira Description: $DESCRIPTION"
+          echo "description=$DESCRIPTION" >> $GITHUB_OUTPUT
 
       - name: Get Full PR Diff
         id: diff
@@ -79,7 +64,7 @@ jobs:
                -H "Authorization: token $GITHUB_TOKEN" \
                "https://api.github.com/repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}" > pr_diff.txt
 
-          echo "----- First 50 lines for preview -----"
+          echo "----- First 50 lines of Diff -----"
           head -n 50 pr_diff.txt
 
       - name: Check PR Size
@@ -104,30 +89,41 @@ jobs:
           echo "Generating semantic AI review with Jira context..."
 
           DIFF_CONTENT=$(cat pr_diff.txt)
-          PR_DIFF=$(echo "$DIFF_CONTENT" | base64 -w 0)
           JIRA_DESCRIPTION="${{ steps.jira.outputs.description }}"
 
-          RESPONSE=$(curl -s -X POST "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$GEMINI_API_KEY" \
+          RESPONSE=$(curl -s -X POST \
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$GEMINI_API_KEY" \
             -H "Content-Type: application/json" \
             -d "{
               \"contents\": [{
+                \"role\": \"user\",
                 \"parts\": [{
-                  \"text\": \"You are a senior Flutter reviewer. Analyze only the **important semantic changes** in this PR.
+                  \"text\": \"Analyze the important, semantic changes only in code:
+                  - What functional or architectural changes were made?
                   - Ignore formatting-only or non-functional/lint-related changes.
-          
                   For each changed file or module:
-                  - ✅ Provide a concise **summary of what was done** (functional/architectural only).
-                  - 🎯 Explain **what changed vs the original code** in the context of the Jira ticket.
-                  - 🧪 Suggest **manual test cases** a QA/dev can perform to validate the changes.
-                  - ⚠️ Mention **impact areas or other modules** that might be affected.
-          
-                  Jira Ticket Context:\n\n$JIRA_DESCRIPTION\n\n
-                  Base64-encoded PR Diff:\n\n$PR_DIFF\"
+                  - Show what changed and why it changed in the context of the Jira ticket.
+                  Produce:
+                  - ✅ A concise summary of what was done.
+                  - 🎯 Explain what changed vs original code (semantic only).
+                  - 🧪 Provide manual test cases or test suggestions a QA/dev can perform.
+                  - ⚠️ Mention impact areas or modules that could be affected.
+
+                  Jira Description: $JIRA_DESCRIPTION
+
+                  PR Diff:
+                  $DIFF_CONTENT\"
                 }]
               }]
             }")
 
-          SUMMARY=$(echo "$RESPONSE" | jq -r '.candidates[0].content.parts[0].text')
+          echo "----- RAW GEMINI RESPONSE -----"
+          echo "$RESPONSE"
+
+          SUMMARY=$(echo "$RESPONSE" | jq -r '.candidates[0].content.parts[0].text // empty')
+          if [ -z "$SUMMARY" ]; then
+            SUMMARY="⚠️ Gemini returned no content. Possible empty PR or API issue."
+          fi
           echo "----- Extracted Summary -----"
           echo "$SUMMARY"
 
@@ -135,7 +131,7 @@ jobs:
           echo "$SUMMARY" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
-      - name: Post Semantic Review as PR Comment
+      - name: Post AI Review as PR Comment
         uses: actions/github-script@v7
         env:
           REVIEW_SUMMARY: ${{ steps.ai.outputs.summary }}
@@ -150,6 +146,6 @@ jobs:
                 issue_number: context.payload.pull_request.number,
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                body: "### 🧠 AI Semantic PR Review with Jira Context\n\n" + summary
+                body: "### 🧠 AI PR Review (Semantic + Jira Context)\n\n" + summary
               });
             }
