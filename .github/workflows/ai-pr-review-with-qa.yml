@@ -58,21 +58,6 @@ jobs:
           echo "$QA_TESTS" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
-      - name: Post QA Test Cases as PR Comment
-        uses: actions/github-script@v7
-        with:
-          github-token: ${{ secrets.PR_COMMENT_TOKEN }}
-          script: |
-            const qaTests = process.env.QA_TESTS;
-            github.rest.issues.createComment({
-              issue_number: context.payload.pull_request.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: `## QA Manual Test Cases\n\n${qaTests}`
-            });
-        env:
-          QA_TESTS: ${{ steps.qa.outputs.qa_tests }}
-
       - name: Post QA Test Cases to Jira
         if: success()
         env:
@@ -88,10 +73,13 @@ jobs:
             exit 0
           fi
 
+          echo "Extracted Jira Issue Key: $ISSUE_KEY"
+
           COMMENT_BODY=$(jq -Rs '.' <<< "QA Manual Test Cases:\n\n${QA_TESTS}")
 
-          curl -s -X POST \
+          echo "Posting QA test cases to Jira issue: $ISSUE_KEY"
+          curl -Ls -X POST \
             -H "Content-Type: application/json" \
             -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
             --data "{\"body\": $COMMENT_BODY}" \
-            "$JIRA_BASE_URL/rest/api/3/issue/$ISSUE_KEY/comment"
+            "$JIRA_BASE_
