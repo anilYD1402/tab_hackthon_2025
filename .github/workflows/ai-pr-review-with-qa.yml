@@ -74,10 +74,12 @@ jobs:
         with:
           github-token: ${{ secrets.PR_COMMENT_TOKEN }}
           script: |
-            const qaTests = `${{ steps.qa.outputs.qa_tests }}`;
+            const qaTests = process.env.QA_TESTS;
             github.rest.issues.createComment({
               issue_number: context.payload.pull_request.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
               body: `## QA Manual Test Cases\n\n${qaTests}`
             });
+        env:
+          QA_TESTS: ${{ steps.qa.outputs.qa_tests }}
