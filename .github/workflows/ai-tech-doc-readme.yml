@@ -1,0 +1,93 @@
+name: Auto-Generate Tech Docs
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: write
+  pull-requests: read
+  issues: read
+
+jobs:
+  generate-docs:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Extract Jira Issue Key
+        id: extract
+        run: |
+          ISSUE_KEY=$(echo "${{ github.event.pull_request.title }}" | grep -oE '[A-Za-z]+-[0-9]+' | tr '[:lower:]' '[:upper:]')
+          echo "issue_key=$ISSUE_KEY" >> $GITHUB_OUTPUT
+
+      - name: Get Jira Details
+        id: jira
+        env:
+          JIRA_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+        run: |
+          RESPONSE=$(curl -s -u $JIRA_EMAIL:$JIRA_TOKEN \
+            -X GET "https://yourcompany.atlassian.net/rest/api/3/issue/${{ steps.extract.outputs.issue_key }}")
+
+          DESCRIPTION=$(echo "$RESPONSE" | jq -r '
+            def walkContent:
+              .[] | if .content then (.content | walkContent) else .text end;
+            .fields.description.content | walkContent
+          ' | tr '\n' ' ')
+
+          TITLE=$(echo "$RESPONSE" | jq -r '.fields.summary')
+          STATUS=$(echo "$RESPONSE" | jq -r '.fields.status.name')
+
+          echo "title=$TITLE" >> $GITHUB_OUTPUT
+          echo "description=$DESCRIPTION" >> $GITHUB_OUTPUT
+          echo "status=$STATUS" >> $GITHUB_OUTPUT
+
+      - name: Generate Tech Doc with AI
+        id: ai
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          DIFF=$(curl -s -H "Accept: application/vnd.github.v3.diff" \
+               -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+               "https://api.github.com/repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}")
+
+          RESPONSE=$(curl -s -X POST \
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$GEMINI_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"contents\": [{
+                \"parts\": [{
+                  \"text\": \"Create a technical documentation entry based on:
+                  - Jira Title: ${{ steps.jira.outputs.title }}
+                  - Jira Description: ${{ steps.jira.outputs.description }}
+                  - Status: ${{ steps.jira.outputs.status }}
+                  - PR Diff: $DIFF
+
+                  Output a well-structured Markdown section for a README update with:
+                  - Feature title
+                  - Jira details
+                  - Implementation summary
+                  - API changes
+                  - Test cases
+                  - PR link\"
+                }]
+              }]
+            }")
+
+          SUMMARY=$(echo "$RESPONSE" | jq -r '.candidates[0].content.parts[0].text')
+          echo "doc<<EOF" >> $GITHUB_OUTPUT
+          echo "$SUMMARY" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Update README
+        run: |
+          echo "${{ steps.ai.outputs.doc }}" >> README.md
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add README.md
+          git commit -m "docs: update tech doc for ${{ steps.extract.outputs.issue_key }}"
+          git push
