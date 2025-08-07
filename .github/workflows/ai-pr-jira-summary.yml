@@ -111,7 +111,7 @@ jobs:
                       - And any potential side effects..
                    - Input:
                      Jira Ticket Context:\n\n$JIRA_DESCRIPTION\n\n
-                  Base64-encoded PR Diff:\n\n$PR_DIFF\
+                  Base64-encoded PR Diff:\n\n$PR_DIFF
                   - Your Output Should Include:
                   For each changed file or module:
                   - ✅  **Semantic Summary per File or Module**
