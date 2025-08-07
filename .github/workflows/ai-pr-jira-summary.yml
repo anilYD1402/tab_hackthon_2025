@@ -106,12 +106,11 @@ jobs:
                   - Ignore formatting-only or non-functional/lint-related changes.
           
                   For each changed file or module:
-                  - ✅ Provide a concise **summary of what was done** (functional/architectural only).
-                  - 📌 Check if the PR fully covers all **Acceptance Criteria (AC)** from the Jira description.
+                  - ✅ Provide a concise **summary of what was done** (functional/architectural only) include description from jira.
+                  - 📌 Check if the PR fully covers all **Acceptance Criteria (AC)** from the Jira description and highlight if any AC missing in implementation.
                   - 🎯 Explain **what changed vs the original code** in the context of the Jira ticket.
-                  - 🧪 Suggest **manual test cases** a QA/dev can perform to validate the changes.
+                  - 🧪 Suggest **QA impacted Area** what actually Qa need to test according to the code changes.
                   - ⚠️ Mention **impact areas or other modules** that might be affected.
-                  - 🧪 Suggest **manual test cases** a QA or developer should perform, based on both the PR and Jira description.
           
           
                   Jira Ticket Context:\n\n$JIRA_DESCRIPTION\n\n
