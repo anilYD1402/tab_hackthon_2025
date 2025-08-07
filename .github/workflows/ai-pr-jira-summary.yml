@@ -128,7 +128,8 @@ jobs:
                   - ⚠️ **Potential Side Effects / Affected Modules**
                      - Highlight other areas, modules, or flows that could be impacted by this change.
                      - Include dependencies, shared components, or reused logic.
-                     - Mention if further regression testing is needed elsewhere."
+                     - Mention if further regression testing is needed elsewhere.
+          /"
                 }]
               }]
             }")
