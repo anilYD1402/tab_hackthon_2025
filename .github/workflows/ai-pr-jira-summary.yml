@@ -96,17 +96,17 @@ jobs:
           JIRA_DESCRIPTION="${{ steps.jira.outputs.description }}"
 
           RESPONSE=$(curl -s -X POST \
-            "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$GEMINI_API_KEY" \
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$GEMINI_API_KEY" \
             -H "Content-Type: application/json" \
             -d "{
               \"contents\": [{
                 \"role\": \"user\",
                 \"parts\": [{
-                  \"text\": \"You are a senior Flutter reviewer. Analyze only the **important semantic changes** in this PR.
+                  \"text\": \"You are a senior Flutter reviewer. Analyze only the **semantic changes** in this PR.
                   - Ignore formatting-only or non-functional/lint-related changes.
           
                   For each changed file or module:
-                  - ✅ Provide a concise **summary of what was done** (functional/architectural only) include description from jira.
+                  - ✅ Provide a concise **summary of what was done** in this pr(functional/architectural only) with respected to jira description.
                   - 📌 Check if the PR fully covers all **Acceptance Criteria (AC)** from the Jira description and highlight if any AC missing in implementation.
                   - 🎯 Explain **what changed vs the original code** in the context of the Jira ticket.
                   - 🧪 Suggest **QA impacted Area** what actually Qa need to test according to the code changes.
