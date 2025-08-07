@@ -88,24 +88,37 @@ jobs:
         if: steps.pr_size.outputs.changed_files <= 100
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          JIRA_DESCRIPTION: ${{ steps.jira.outputs.description }}
-          PR_DIFF: ${{ steps.diff.outputs.diff }}
         run: |
-          echo "Generating Tech Doc via Gemini..."
+          echo "Generating semantic AI review with Jira context..."
 
-          RESPONSE=$(curl -s -X POST "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$GEMINI_API_KEY" \
+          DIFF_CONTENT=$(cat pr_diff.txt)
+          PR_DIFF=$(echo "$DIFF_CONTENT" | base64 -w 0)
+          JIRA_DESCRIPTION="${{ steps.jira.outputs.description }}"
+
+          RESPONSE=$(curl -s -X POST \
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$GEMINI_API_KEY" \
             -H "Content-Type: application/json" \
-            -d "$(jq -n \
-              --arg jira "$JIRA_DESCRIPTION" \
-              --arg diff "$PR_DIFF" \
-              '{
-                contents: [{
-                  role: "user",
-                  parts: [{
-                    text: "You are a senior Flutter reviewer. Carefully review the pull request in the context of the **Jira ticket** and its **Acceptance Criteria (AC)**.\n\n🔍 Your goals:\n1. ✅ Summarize the **functional or architectural changes** introduced by the PR.\n2. 🔄 Explain **what changed** in the code vs. the original implementation.\n3. ✅ Check if all **Acceptance Criteria from the Jira ticket** are addressed in the PR.\n  - If any AC is **missing**, clearly list what is **not implemented or partially implemented**.\n4. 🧪 Provide detailed **manual test cases** a QA or developer can run to validate the changes.\n5. ⚠️ Identify **other modules or features** that could be impacted.\n\nJira Ticket Context:\n\n\($jira)\n\nBase64-encoded PR Diff:\n\n\($diff)"
-                  }]
+            -d "{
+              \"contents\": [{
+                \"role\": \"user\",
+                \"parts\": [{
+                  \"text\": \"You are a senior Flutter reviewer. Analyze only the **important semantic changes** in this PR.
+                  - Ignore formatting-only or non-functional/lint-related changes.
+          
+                  For each changed file or module:
+                  - ✅ Provide a concise **summary of what was done** (functional/architectural only).
+                  - 📌 Check if the PR fully covers all **Acceptance Criteria (AC)** from the Jira description.
+                  - 🎯 Explain **what changed vs the original code** in the context of the Jira ticket.
+                  - 🧪 Suggest **manual test cases** a QA/dev can perform to validate the changes.
+                  - ⚠️ Mention **impact areas or other modules** that might be affected.
+                  - 🧪 Suggest **manual test cases** a QA or developer should perform, based on both the PR and Jira description.
+          
+          
+                  Jira Ticket Context:\n\n$JIRA_DESCRIPTION\n\n
+                  Base64-encoded PR Diff:\n\n$PR_DIFF\"
                 }]
-              }')")
+              }]
+            }")
 
           echo "----- RAW GEMINI RESPONSE -----"
           echo "$RESPONSE"
