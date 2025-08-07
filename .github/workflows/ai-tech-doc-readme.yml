@@ -42,7 +42,7 @@ jobs:
           JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
         run: |
           RESPONSE=$(curl -s -u $JIRA_EMAIL:$JIRA_TOKEN \
-            -X GET "https://yourcompany.atlassian.net/rest/api/3/issue/${{ steps.extract.outputs.issue_key }}")
+            -X GET "https://tusharnigam88.atlassian.net/rest/api/3/issue/${{ steps.extract.outputs.issue_key }}")
 
           echo "----- RAW Jira API Response (first 500 chars) -----"
           echo "$RESPONSE" | head -c 500
@@ -82,7 +82,7 @@ jobs:
           echo "Generating Tech Doc via Gemini..."
 
           RESPONSE=$(curl -s -X POST \
-            "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$GEMINI_API_KEY" \
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$GEMINI_API_KEY" \
             -H "Content-Type: application/json" \
             -d "{
               \"contents\": [{
