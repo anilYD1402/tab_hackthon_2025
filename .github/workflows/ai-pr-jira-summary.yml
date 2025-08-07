@@ -2,7 +2,7 @@ name: AI PR Review Summary
 
 on:
   pull_request:
-    types: [ opened, synchronize, reopened ]
+    types: [opened, synchronize, reopened]
 
 permissions:
   contents: read
@@ -17,34 +17,75 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Set up PR metadata
-        id: metadata
+      - name: Check if PR_COMMENT_TOKEN secret is set
         run: |
-          echo "PR_TITLE=$(jq -r .pull_request.title "$GITHUB_EVENT_PATH")" >> $GITHUB_ENV
-          echo "PR_BODY=$(jq -r .pull_request.body "$GITHUB_EVENT_PATH")" >> $GITHUB_ENV
-          echo "PR_NUMBER=$(jq -r .pull_request.number "$GITHUB_EVENT_PATH")" >> $GITHUB_ENV
-          echo "PR_DIFF_URL=$(jq -r .pull_request.diff_url "$GITHUB_EVENT_PATH")" >> $GITHUB_ENV
+          if [ -z "${{ secrets.PR_COMMENT_TOKEN }}" ]; then
+            echo "PR_COMMENT_TOKEN secret is NOT set."
+            exit 1
+          else
+            echo "PR_COMMENT_TOKEN secret is available."
+          fi
 
-      - name: Get PR Diff
-        id: diff
+      - name: Extract Jira Issue Key
+        id: extract
         run: |
-          DIFF=$(curl -s -L "$PR_DIFF_URL")
-          BASE64_DIFF=$(echo "$DIFF" | base64 -w 0)
-          echo "diff=$BASE64_DIFF" >> $GITHUB_OUTPUT
+          ISSUE_KEY=$(echo "${{ github.event.pull_request.title }}" | grep -oE '[A-Za-z]+-[0-9]+' | tr '[:lower:]' '[:upper:]')
+          echo "Extracted Jira Issue Key: $ISSUE_KEY"
+          echo "issue_key=$ISSUE_KEY" >> $GITHUB_OUTPUT
 
-      - name: Get Jira Ticket Description
+      - name: Get Jira Issue Description
         id: jira
+        env:
+          JIRA_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
         run: |
-          TICKET=$(echo "$PR_TITLE" | grep -oE '[A-Z]+-[0-9]+' || echo "UNKNOWN-000")
+          echo "Fetching Jira issue description for ${{ steps.extract.outputs.issue_key }}"
           RESPONSE=$(curl -s -u $JIRA_EMAIL:$JIRA_TOKEN \
-            -H "Accept: application/json" \
-            "https://$JIRA_DOMAIN.atlassian.net/rest/api/3/issue/$TICKET")
+            -X GET "https://tusharnigam88.atlassian.net/rest/api/3/issue/${{ steps.extract.outputs.issue_key }}")
 
-          DESCRIPTION=$(echo "$RESPONSE" | jq -r '.fields.description.content[0].content[0].text // empty')
+          echo "----- RAW Jira API Response (first 1000 chars) -----"
+          echo "$RESPONSE" | head -c 1000
+
+          DESCRIPTION=$(echo "$RESPONSE" | jq -r '
+            def walkContent:
+              .[] | if .content then (.content | walkContent) else .text end;
+            .fields.description.content | walkContent
+          ' | tr '\n' ' ')
+
+          echo "----- Parsed Jira Description -----"
+          echo "$DESCRIPTION"
+
           echo "description=$DESCRIPTION" >> $GITHUB_OUTPUT
+
+      - name: Get Full PR Diff
+        id: diff
+        env:
+          GITHUB_TOKEN: ${{ secrets.PR_COMMENT_TOKEN }}
+        run: |
+          echo "Fetching full PR diff for PR #${{ github.event.pull_request.number }}"
+          curl -s -H "Accept: application/vnd.github.v3.diff" \
+               -H "Authorization: token $GITHUB_TOKEN" \
+               "https://api.github.com/repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}" > pr_diff.txt
+
+          echo "----- First 50 lines of Diff -----"
+          head -n 50 pr_diff.txt
+
+      - name: Check PR Size
+        id: pr_size
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.PR_COMMENT_TOKEN }}
+          script: |
+            const { data: pullRequest } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.payload.pull_request.number,
+            });
+            core.setOutput("changed_files", pullRequest.changed_files);
 
       - name: Generate Semantic AI Review with Jira Context
         id: ai
+        if: steps.pr_size.outputs.changed_files <= 100
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           JIRA_DESCRIPTION: ${{ steps.jira.outputs.description }}
@@ -73,6 +114,8 @@ jobs:
           if [ -z "$SUMMARY" ]; then
             SUMMARY="⚠️ Gemini returned no content. Possible empty PR or API issue."
           fi
+          echo "----- Extracted Summary -----"
+          echo "$SUMMARY"
 
           echo "summary<<EOF" >> $GITHUB_OUTPUT
           echo "$SUMMARY" >> $GITHUB_OUTPUT
