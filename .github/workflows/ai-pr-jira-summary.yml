@@ -2,7 +2,7 @@ name: AI PR Review Summary
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [ opened, synchronize, reopened ]
 
 permissions:
   contents: read
@@ -102,19 +102,8 @@ jobs:
               \"contents\": [{
                 \"role\": \"user\",
                 \"parts\": [{
-                  \"text\": \"You are a senior Flutter reviewer. Analyze only the **semantic changes** in this PR.
-                  - Ignore formatting-only or non-functional/lint-related changes.
-                   - Input:
-                     Jira Ticket Context:\n\n$JIRA_DESCRIPTION\n\n
-                  Base64-encoded PR Diff:\n\n$PR_DIFF\
-                  - Your Output Should Include:
-                  For each changed file or module:
-                  - ✅ Provide a concise **summary of what was done**(functional/architectural only) with respected to jira description.
-                  - 📌 Check if the PR code changes fully covers all **Acceptance Criteria (AC)** with respect to Jira and highlight if any AC missing in implementation.
-                  - 🎯 Explain **what changed vs the original code** in the context of the Jira ticket.
-                  - 🧪 Suggest **QA impacted Area** what actually Qa need to test according to the code changes.
-                  - ⚠️ Mention **impact areas or other modules** that might be affected.
-                  "
+                  \"text\": \"You are a **senior Flutter code reviewer** with a deep understanding of software architecture, feature requirements, and quality assurance. Your task is to review a Pull Request using both the **Jira ticket context (with Acceptance Criteria)** and the **base64-encoded Git Diff**. You must: - Focus only on **semantic, functional, or architectural changes**. - **Ignore formatting-only, comments, or non-functional/lint-related changes**. - Clearly map **code changes** to **Jira requirements**, identifying any missing acceptance criteria. - Help QA and Product teams understand what was changed and what needs to be tested. --- :jigsaw: **Inputs**: Jira Ticket Context (with ACs): ``` $JIRA_DESCRIPTION ``` Base64-Encoded Git Diff: ``` $PR_DIFF ``` --- :clipboard: **Your Output Should Include**: 1. :white_check_mark: **Semantic Summary per File or Module** - Briefly summarize functional or architectural changes made in each file or module. - Highlight how the changes align with the Jira ticket context. - Ignore irrelevant changes (e.g., formatting, comments). 2. :pushpin: **Acceptance Criteria (AC) Coverage Check** - Match implementation against Jira ACs. - Mark ACs as :white_check_mark: Fully Implemented, :warning: Partially Implemented, or :x: Missing. - Point out any mismatch or gaps between PR and Jira expectations. 3. :test_tube: **QA Impact Summary** - List all changed classes/modules. - Describe what QA needs to test functionally (UI/backend as applicable). - Mention user flows, edge cases, or regression areas that need attention. 4. :warning: **Potential Side Effects / Affected Modules** - Identify other modules or functionality that might be impacted indirectly. - Be concise and use bullet points. Flag any risky or sensitive changes. Keep the review focused and efficient. Do not include general praise or vague comments. 
+          \Your output will guide code reviewers, QA engineers, and product stakeholders."
                 }]
               }]
             }")
