@@ -104,17 +104,17 @@ jobs:
                 \"parts\": [{
                   \"text\": \"You are a senior Flutter reviewer. Analyze only the **semantic changes** in this PR.
                   - Ignore formatting-only or non-functional/lint-related changes.
-          
+                   - Input:
+                     Jira Ticket Context:\n\n$JIRA_DESCRIPTION\n\n
+                  Base64-encoded PR Diff:\n\n$PR_DIFF\
+                  - Your Output Should Include:
                   For each changed file or module:
-                  - ✅ Provide a concise **summary of what was done** in this pr don't inlcude in code snippet in pr summary(functional/architectural only) with respected to jira description.
+                  - ✅ Provide a concise **summary of what was done** in this pr don't include in code snippet in pr summary(functional/architectural only) with respected to jira description.
                   - 📌 Check if the PR fully covers all **Acceptance Criteria (AC)** from the Jira description and highlight if any AC missing in implementation.
                   - 🎯 Explain **what changed vs the original code** in the context of the Jira ticket.
                   - 🧪 Suggest **QA impacted Area** what actually Qa need to test according to the code changes.
                   - ⚠️ Mention **impact areas or other modules** that might be affected.
-          
-          
-                  Jira Ticket Context:\n\n$JIRA_DESCRIPTION\n\n
-                  Base64-encoded PR Diff:\n\n$PR_DIFF\"
+                  "
                 }]
               }]
             }")
