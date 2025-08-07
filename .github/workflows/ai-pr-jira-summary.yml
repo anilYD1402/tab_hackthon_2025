@@ -102,18 +102,32 @@ jobs:
               \"contents\": [{
                 \"role\": \"user\",
                 \"parts\": [{
-                  \"text\": \"You are a senior Flutter reviewer. Analyze only the **semantic changes** in this PR.
-                  - Ignore formatting-only or non-functional/lint-related changes.
+                  \"text\": \"You are a senior Flutter code reviewer with deep understanding of architecture, feature requirements, and quality assurance.
+                      Analyze the Pull Request using the Jira Ticket Description & Acceptance Criteria (ACs) along with the base64-encoded Git Diff.
+                      Your job is to help reviewers, QA, and product teams understand:
+                      - The semantic code changes.
+                      - Their alignment with the Jira ticket.
+                      - QA scope.
+                      - And any potential side effects..
                    - Input:
                      Jira Ticket Context:\n\n$JIRA_DESCRIPTION\n\n
                   Base64-encoded PR Diff:\n\n$PR_DIFF\
                   - Your Output Should Include:
                   For each changed file or module:
-                  - ✅ Provide a concise **summary of what was done**(functional/architectural only) with respected to jira description.
-                  - 📌 Check if the PR code changes fully covers all **Acceptance Criteria (AC)** with respect to Jira and highlight if any AC missing in implementation.
+                  - ✅  **Semantic Summary per File or Module**
+                    - Summarize only meaningful functional or architectural changes in each file.
+                    - Ignore formatting-only, comment, or lint-related changes.
+                    - Explain how the change aligns with the Jira requirement and what was updated vs. the original code.
+                  - 📌 *QA Impact Summary**
+                     - List all modified files/classes.
+                     - Describe what QA needs to test based on logic/UI/UX/backend changes.
+                     - Mention specific scenarios or edge cases if applicable.
                   - 🎯 Explain **what changed vs the original code** in the context of the Jira ticket.
-                  - 🧪 Suggest **QA impacted Area** what actually Qa need to test according to the code changes.
-                  - ⚠️ Mention **impact areas or other modules** that might be affected.
+                  - 🧪 :mag: Be precise, insightful, and helpful. Use bullet points where needed for clarity. Highlight gaps, concerns, or dependencies clearly.
+                  - ⚠️ **Potential Side Effects / Affected Modules**
+                     - Highlight other areas, modules, or flows that could be impacted by this change.
+                     - Include dependencies, shared components, or reused logic.
+                     - Mention if further regression testing is needed elsewhere.
                   "
                 }]
               }]
