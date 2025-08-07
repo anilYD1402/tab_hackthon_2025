@@ -109,8 +109,8 @@ jobs:
                   Base64-encoded PR Diff:\n\n$PR_DIFF\
                   - Your Output Should Include:
                   For each changed file or module:
-                  - ✅ Provide a concise **summary of what was done** in this pr don't include in code snippet in pr summary(functional/architectural only) with respected to jira description.
-                  - 📌 Check if the PR fully covers all **Acceptance Criteria (AC)** from the Jira description and highlight if any AC missing in implementation.
+                  - ✅ Provide a concise **summary of what was done**(functional/architectural only) with respected to jira description.
+                  - 📌 Check if the PR code changes fully covers all **Acceptance Criteria (AC)** with respect to Jira and highlight if any AC missing in implementation.
                   - 🎯 Explain **what changed vs the original code** in the context of the Jira ticket.
                   - 🧪 Suggest **QA impacted Area** what actually Qa need to test according to the code changes.
                   - ⚠️ Mention **impact areas or other modules** that might be affected.
