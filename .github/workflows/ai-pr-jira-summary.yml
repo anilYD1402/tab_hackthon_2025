@@ -104,8 +104,8 @@ jobs:
                 \"parts\": [{
                   \"text\": \"You are a senior Flutter code reviewer with deep understanding of architecture, feature requirements, and quality assurance.
                       Analyze the Pull Request using the Jira Ticket Description & Acceptance Criteria (ACs) along with the base64-encoded Git Diff.
-                      Your job is to help reviewers, QA, and product teams understand:
-                      - The semantic code changes do not post any code in the summary.
+                      Your job is to help reviewers, QA, and product teams understand in limited readable summary:
+                      - The semantic code changes,do not post any code in the summary.
                       - Their alignment with the Jira ticket.
                       - QA scope.
                       - And any potential side effects..
@@ -114,7 +114,7 @@ jobs:
                      Base64-encoded PR Diff:$PR_DIFF
           
                   - Your Output Should Include:
-                  For each changed file or module:
+              
                   - ✅  **Semantic Summary per File or Module**
                     - Summarize only meaningful functional or architectural changes in each file.
                     - Ignore formatting-only, comment, or lint-related changes.
