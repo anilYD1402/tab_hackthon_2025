@@ -110,8 +110,8 @@ jobs:
                       - QA scope.
                       - And any potential side effects..
                    - Input:
-                     Jira Ticket Context:\n\n$JIRA_DESCRIPTION\n
-                     Base64-encoded PR Diff:\n\n$PR_DIFF
+                     Jira Ticket Context:$JIRA_DESCRIPTION
+                     Base64-encoded PR Diff:$PR_DIFF
           
                   - Your Output Should Include:
                   For each changed file or module:
@@ -129,7 +129,7 @@ jobs:
                   - ⚠️ **Potential Side Effects / Affected Modules**
                      - Highlight other areas, modules, or flows that could be impacted by this change.
                      - Include dependencies, shared components, or reused logic.
-                     - Mention if further regression testing is needed elsewhere.
+                     - Mention if further regression testing is needed elsewhere.\"
                 }]
               }]
             }")
