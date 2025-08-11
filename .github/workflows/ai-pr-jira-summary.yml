@@ -95,11 +95,11 @@ jobs:
           PR_DIFF=$(echo "$DIFF_CONTENT" | base64 -w 0)
           JIRA_DESCRIPTION="${{ steps.jira.outputs.description }}"
 
-          # Create prompt file with raw text
-          cat > prompt.txt <<EOF
+          # Create prompt file
+          cat <<'EOF' > prompt.txt
          You are a senior Flutter code reviewer with deep understanding of architecture, feature requirements, and quality assurance.
   
-         Analyze the Pull Request using the Jira Ticket Description & Acceptance Criteria (ACs) along with the base64-encoded Git Diff.
+          Analyze the Pull Request using the Jira Ticket Description & Acceptance Criteria (ACs) along with the base64-encoded Git Diff.
 
 Your job is to help reviewers, QA, and product teams understand:
   - The semantic code changes, without any code in the summary.
@@ -108,10 +108,10 @@ Your job is to help reviewers, QA, and product teams understand:
   - And any potential side effects.
 
 Jira Ticket Context:
-  $JIRA_DESCRIPTION
+  {{JIRA_DESCRIPTION}}
 
 Base64-encoded PR Diff:
-  $PR_DIFF
+  {{PR_DIFF}}
 
 Your Output Should Include:
   - Respond only in valid GitHub Markdown format.
@@ -130,10 +130,13 @@ Your Output Should Include:
   - 📌 **QA Impact Summary**
     - List all modified files/classes.
     - Describe what QA needs to test based on logic/UI/UX/backend changes.
-    EOF
+      EOF
   
-  # Use jq -Rs to escape special characters for JSON
-   PROMPT_ESCAPED=$(jq -Rs '.' prompt.txt)
+     # Replace placeholders with real values safely
+     sed -i "s|{{JIRA_DESCRIPTION}}|$JIRA_DESCRIPTION|g" prompt.txt
+      sed -i "s|{{PR_DIFF}}|$PR_DIFF|g" prompt.txt
+  
+      PROMPT_ESCAPED=$(jq -Rs '.' prompt.txt)
   
    RESPONSE=$(curl -s -X POST \
    "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$GEMINI_API_KEY" \
