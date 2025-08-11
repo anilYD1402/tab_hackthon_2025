@@ -114,7 +114,7 @@ jobs:
                      Base64-encoded PR Diff:$PR_DIFF
           
                   - Your Output Should Include:
-              
+                  - Respond only in valid GitHub Markdown format.
                   - ✅  **Semantic Summary per File or Module**
                     - Summarize only meaningful functional or architectural changes in each file.
                     - Ignore formatting-only, comment, or lint-related changes.
@@ -163,6 +163,6 @@ jobs:
                 issue_number: context.payload.pull_request.number,
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                body: "### 🧠 AI Semantic PR Review with Jira Context\n\n" + summary
+                body: "## 🧠 AI Semantic PR Review with Jira Context\n\n" + summary
               });
             }
