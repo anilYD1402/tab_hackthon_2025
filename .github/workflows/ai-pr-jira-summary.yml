@@ -119,6 +119,7 @@ jobs:
                     - Summarize only meaningful functional or architectural changes in each file.
                     - Ignore formatting-only, comment, or lint-related changes.
                     - Explain how the change aligns with the Jira requirement and what was updated vs. the original code.
+                    - Compare code changes with the Jira ticket, highlighting any missing Jira items in the code and any extra code changes not mentioned in Jira.
                   - 📌 *QA Impact Summary**
                      - List all modified files/classes.
                      - Describe what QA needs to test based on logic/UI/UX/backend changes.
@@ -129,7 +130,6 @@ jobs:
                      - Highlight other areas, modules, or flows that could be impacted by this change.
                      - Include dependencies, shared components, or reused logic.
                      - Mention if further regression testing is needed elsewhere.
-          /"
                 }]
               }]
             }")
