@@ -166,12 +166,6 @@ jobs:
              .replace(/\n?\{\}\s*$/, "") // remove trailing {}
              .replace(/^###.*\n/, ""); // remove the first markdown heading line
   
-  
-             // Remove any other stray code fences inside
-             summary = summary.replace(/```/g, "");
-
-             // Remove empty JSON {} at the end
-            summary = summary.replace(/\n?\{\}\s*$/, "").trim();
             if (!summary || summary.trim() === "null") {
               core.setFailed("Summary is empty. Skipping PR comment.");
             } else {
