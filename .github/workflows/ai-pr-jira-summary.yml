@@ -157,10 +157,10 @@ jobs:
           script: |
             let summary = process.env.REVIEW_SUMMARY;
             
-            // Remove starting ```markdown or ``` and ending ```
+            // Remove code fences
             summary = summary.replace(/^```(?:markdown)?\n?/, "").replace(/```$/, "");
 
-            // Remove trailing empty JSON {} blocks if present
+            // Remove empty JSON {} at the end
             summary = summary.replace(/\n?\{\}\s*$/, "");
             if (!summary || summary.trim() === "null") {
               core.setFailed("Summary is empty. Skipping PR comment.");
