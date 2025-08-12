@@ -160,9 +160,14 @@ jobs:
               summary = summary.trim();
 
              // Remove ```markdown or ``` from start and end (case-insensitive)
-            summary = summary.replace(/^```(?:markdown)?\s*/i, "").replace(/\s*```$/, "");
-
-            // Remove any other stray code fences inside
+              summary = summary
+             .replace(/^```(?:markdown)?\n?/, "") // remove opening code fence
+             .replace(/```$/, "") // remove closing code fence
+             .replace(/\n?\{\}\s*$/, "") // remove trailing {}
+             .replace(/^###.*\n/, ""); // remove the first markdown heading line
+  
+  
+             // Remove any other stray code fences inside
              summary = summary.replace(/```/g, "");
 
              // Remove empty JSON {} at the end
