@@ -155,7 +155,17 @@ jobs:
         with:
           github-token: ${{ secrets.PR_COMMENT_TOKEN }}
           script: |
-            const summary = process.env.REVIEW_SUMMARY;
+            let summary = process.env.REVIEW_SUMMARY;
+               // Trim whitespace
+              summary = summary.trim();
+
+             // Remove ```markdown or ``` from start and end (case-insensitive)
+              summary = summary
+             .replace(/^```(?:markdown)?\n?/, "") // remove opening code fence
+             .replace(/```$/, "") // remove closing code fence
+             .replace(/\n?\{\}\s*$/, "") // remove trailing {}
+             .replace(/^###.*\n/, ""); // remove the first markdown heading line
+  
             if (!summary || summary.trim() === "null") {
               core.setFailed("Summary is empty. Skipping PR comment.");
             } else {
@@ -163,6 +173,8 @@ jobs:
                 issue_number: context.payload.pull_request.number,
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                body: "### 🧠 AI Semantic PR Review with Jira Context\n\n" + summary
+                body: `### 🧠 AI Semantic PR Review with Jira Context
+  
+                 ${summary}`
               });
             }
