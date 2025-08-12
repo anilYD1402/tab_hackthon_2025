@@ -156,12 +156,17 @@ jobs:
           github-token: ${{ secrets.PR_COMMENT_TOKEN }}
           script: |
             let summary = process.env.REVIEW_SUMMARY;
-            
-            // Remove code fences
-            summary = summary.replace(/^```(?:markdown)?\n?/, "").replace(/```$/, "");
+               // Trim whitespace
+              summary = summary.trim();
 
-            // Remove empty JSON {} at the end
-            summary = summary.replace(/\n?\{\}\s*$/, "");
+             // Remove ```markdown or ``` from start and end (case-insensitive)
+            summary = summary.replace(/^```(?:markdown)?\s*/i, "").replace(/\s*```$/, "");
+
+            // Remove any other stray code fences inside
+             summary = summary.replace(/```/g, "");
+
+             // Remove empty JSON {} at the end
+            summary = summary.replace(/\n?\{\}\s*$/, "").trim();
             if (!summary || summary.trim() === "null") {
               core.setFailed("Summary is empty. Skipping PR comment.");
             } else {
