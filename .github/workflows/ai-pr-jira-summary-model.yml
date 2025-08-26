@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   summarize:
-    runs-on: [self-hosted, macOS, ARM64]   # ✅ Matches your runner’s labels
+    runs-on: [self-hosted, macOS, ARM64]
 
     steps:
       - name: Checkout code
@@ -85,7 +85,7 @@ jobs:
           RESPONSE=$(curl -s -X POST http://localhost:11434/api/generate \
             -H "Content-Type: application/json" \
             -d "{
-              \"model\": \"phi3:medium\",
+              \"model\": \"phi3:mini\",
               \"prompt\": \"You are a senior Flutter code reviewer...
               Jira Ticket Context: $JIRA_DESCRIPTION
               Base64-encoded PR Diff: $PR_DIFF\"
