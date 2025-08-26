@@ -11,8 +11,7 @@ permissions:
 
 jobs:
   summarize:
-    # ⚠️ Important: Use your Mac self-hosted runner where Ollama is installed
-    runs-on: self-hosted
+    runs-on: [self-hosted, macOS]
 
     steps:
       - name: Checkout code
@@ -40,21 +39,14 @@ jobs:
           JIRA_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
           JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
         run: |
-          echo "Fetching Jira issue description for ${{ steps.extract.outputs.issue_key }}"
           RESPONSE=$(curl -s -u $JIRA_EMAIL:$JIRA_TOKEN \
             -X GET "https://tusharnigam88.atlassian.net/rest/api/3/issue/${{ steps.extract.outputs.issue_key }}")
-
-          echo "----- RAW Jira API Response (first 1000 chars) -----"
-          echo "$RESPONSE" | head -c 1000
 
           DESCRIPTION=$(echo "$RESPONSE" | jq -r '
             def walkContent:
               .[] | if .content then (.content | walkContent) else .text end;
             .fields.description.content | walkContent
           ' | tr '\n' ' ')
-
-          echo "----- Parsed Jira Description -----"
-          echo "$DESCRIPTION"
 
           echo "description=$DESCRIPTION" >> $GITHUB_OUTPUT
 
@@ -63,12 +55,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.PR_COMMENT_TOKEN }}
         run: |
-          echo "Fetching full PR diff for PR #${{ github.event.pull_request.number }}"
           curl -s -H "Accept: application/vnd.github.v3.diff" \
                -H "Authorization: token $GITHUB_TOKEN" \
                "https://api.github.com/repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}" > pr_diff.txt
-
-          echo "----- First 50 lines of Diff -----"
           head -n 50 pr_diff.txt
 
       - name: Check PR Size
@@ -77,12 +66,12 @@ jobs:
         with:
           github-token: ${{ secrets.PR_COMMENT_TOKEN }}
           script: |
-            const { data: pullRequest } = await github.rest.pulls.get({
+            const { data: pr } = await github.rest.pulls.get({
               owner: context.repo.owner,
               repo: context.repo.repo,
               pull_number: context.payload.pull_request.number,
             });
-            core.setOutput("changed_files", pullRequest.changed_files);
+            core.setOutput("changed_files", pr.changed_files);
 
       - name: Generate Semantic AI Review with Jira Context (Local Ollama)
         id: ai
@@ -91,7 +80,8 @@ jobs:
           echo "Generating semantic AI review with Jira context using local Ollama..."
 
           DIFF_CONTENT=$(cat pr_diff.txt)
-          PR_DIFF=$(echo "$DIFF_CONTENT" | base64 -w 0)
+          # macOS safe base64
+          PR_DIFF=$(printf "%s" "$DIFF_CONTENT" | base64)
           JIRA_DESCRIPTION="${{ steps.jira.outputs.description }}"
 
           RESPONSE=$(curl -s -X POST http://localhost:11434/api/generate \
@@ -125,9 +115,6 @@ jobs:
             SUMMARY="⚠️ Ollama returned no content. Possible empty PR or model issue."
           fi
 
-          echo "----- Extracted Summary -----"
-          echo "$SUMMARY"
-
           echo "summary<<EOF" >> $GITHUB_OUTPUT
           echo "$SUMMARY" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
@@ -139,17 +126,14 @@ jobs:
         with:
           github-token: ${{ secrets.PR_COMMENT_TOKEN }}
           script: |
-            let summary = process.env.REVIEW_SUMMARY;
-            summary = summary.trim();
+            let summary = process.env.REVIEW_SUMMARY || '';
+            summary = summary.trim()
+              .replace(/^```(?:markdown)?\n?/, '')
+              .replace(/```$/, '')
+              .replace(/\n?\{\}\s*$/, '')
+              .replace(/^###.*\n/, '');
 
-            // cleanup formatting if needed
-            summary = summary
-             .replace(/^```(?:markdown)?\n?/, "")
-             .replace(/```$/, "")
-             .replace(/\n?\{\}\s*$/, "")
-             .replace(/^###.*\n/, "");
-
-            if (!summary || summary.trim() === "null") {
+            if (!summary) {
               core.setFailed("Summary is empty. Skipping PR comment.");
             } else {
               await github.rest.issues.createComment({
@@ -158,6 +142,6 @@ jobs:
                 repo: context.repo.repo,
                 body: `### 🧠 AI Semantic PR Review with Jira Context (Local Model)
   
-               ${summary}`
+                ${summary}`
               });
   }
