@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   summarize:
-    runs-on: [self-hosted, macOS, ARM64]   # ✅ Matches your runner’s labels
+    runs-on: [self-hosted, macOS, ARM64]
 
     steps:
       - name: Checkout code
@@ -72,24 +72,28 @@ jobs:
             });
             core.setOutput("changed_files", pr.changed_files);
 
-      - name: Generate Semantic AI Review with Jira Context (Local Ollama)
-        id: ai
+            - name: Generate Semantic AI Review with Jira Context (Local Ollama)
+          id: ai
         if: steps.pr_size.outputs.changed_files <= 100
         run: |
           echo "Generating semantic AI review with Jira context using local Ollama..."
 
           DIFF_CONTENT=$(cat pr_diff.txt)
           PR_DIFF=$(printf "%s" "$DIFF_CONTENT" | base64)   # macOS safe base64
-          JIRA_DESCRIPTION="${{ steps.jira.outputs.description }}"
+          
+          # Escape Jira description safely for JSON
+          JIRA_DESCRIPTION=$(echo "${{ steps.jira.outputs.description }}" | jq -Rs .)
 
           RESPONSE=$(curl -s -X POST http://localhost:11434/api/generate \
             -H "Content-Type: application/json" \
             -d "{
-              \"model\": \"phi3:medium\",
-              \"prompt\": \"You are a senior Flutter code reviewer...
-              Jira Ticket Context: $JIRA_DESCRIPTION
-              Base64-encoded PR Diff: $PR_DIFF\"
+              \"model\": \"phi3:mini\",
+              \"prompt\": \"You are a senior Flutter code reviewer with deep understanding of architecture, feature requirements, and quality assurance. Analyze the Pull Request using the Jira Ticket Description & Acceptance Criteria (ACs) along with the base64-encoded Git Diff. Your job is to help reviewers, QA, and product teams understand: - The semantic code changes (without any code in the summary). - Their alignment with the Jira ticket. - QA scope. - Any potential side effects. Jira Ticket Context: $JIRA_DESCRIPTION Base64-encoded PR Diff: $PR_DIFF\",
+              \"stream\": false
             }")
+
+          echo "----- RAW OLLAMA RESPONSE -----"
+          echo "$RESPONSE"
 
           SUMMARY=$(echo "$RESPONSE" | jq -r '.response // empty')
           if [ -z "$SUMMARY" ]; then
@@ -99,6 +103,7 @@ jobs:
           echo "summary<<EOF" >> $GITHUB_OUTPUT
           echo "$SUMMARY" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
+
 
       - name: Post AI Review as PR Comment
         uses: actions/github-script@v7
