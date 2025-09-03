@@ -1,0 +1,126 @@
+name: AI PR Review Summary Model
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  summarize:
+    runs-on: [self-hosted, macOS, ARM64]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Check if PR_COMMENT_TOKEN secret is set
+        run: |
+          if [ -z "${{ secrets.PR_COMMENT_TOKEN }}" ]; then
+            echo "PR_COMMENT_TOKEN secret is NOT set."
+            exit 1
+          else
+            echo "PR_COMMENT_TOKEN secret is available."
+          fi
+
+      - name: Extract Jira Issue Key
+        id: extract
+        run: |
+          ISSUE_KEY=$(echo "${{ github.event.pull_request.title }}" | grep -oE '[A-Za-z]+-[0-9]+' | tr '[:lower:]' '[:upper:]')
+          echo "issue_key=$ISSUE_KEY" >> $GITHUB_OUTPUT
+
+      - name: Get Jira Issue Description
+        id: jira
+        env:
+          JIRA_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+        run: |
+          RESPONSE=$(curl -s -u $JIRA_EMAIL:$JIRA_TOKEN \
+            -X GET "https://tusharnigam88.atlassian.net/rest/api/3/issue/${{ steps.extract.outputs.issue_key }}")
+
+          DESCRIPTION=$(echo "$RESPONSE" | jq -r '
+            def walkContent:
+              .[] | if .content then (.content | walkContent) else .text end;
+            .fields.description.content | walkContent
+          ' | tr '\n' ' ')
+
+          echo "description=$DESCRIPTION" >> $GITHUB_OUTPUT
+
+      - name: Get Full PR Diff
+        id: diff
+        env:
+          GITHUB_TOKEN: ${{ secrets.PR_COMMENT_TOKEN }}
+        run: |
+          curl -s -H "Accept: application/vnd.github.v3.diff" \
+               -H "Authorization: token $GITHUB_TOKEN" \
+               "https://api.github.com/repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}" > pr_diff.txt
+          head -n 50 pr_diff.txt
+
+      - name: Check PR Size
+        id: pr_size
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.PR_COMMENT_TOKEN }}
+          script: |
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.payload.pull_request.number,
+            });
+            core.setOutput("changed_files", pr.changed_files);
+
+      - name: Generate Semantic AI Review with Jira Context (Local Ollama)
+        id: ai
+        if: steps.pr_size.outputs.changed_files <= 100
+        shell: bash
+        run: |
+          echo "Generating semantic AI review with Jira context using local Ollama..."
+
+          DIFF_CONTENT=$(cat pr_diff.txt)
+          PR_DIFF=$(printf "%s" "$DIFF_CONTENT" | base64)   # macOS safe base64
+          
+          # Escape Jira description safely for JSON
+          JIRA_DESCRIPTION=$(echo "${{ steps.jira.outputs.description }}" | jq -Rs .)
+
+          RESPONSE=$(curl -s -X POST http://localhost:11434/api/generate \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"model\": \"phi3:mini\",
+              \"prompt\": \"You are a senior Flutter code reviewer with deep understanding of architecture, feature requirements, and quality assurance. Analyze the Pull Request using the Jira Ticket Description & Acceptance Criteria (ACs) along with the base64-encoded Git Diff. Your job is to help reviewers, QA, and product teams understand: - The semantic code changes (without any code in the summary). - Their alignment with the Jira ticket. - QA scope. - Any potential side effects. Jira Ticket Context: $JIRA_DESCRIPTION Base64-encoded PR Diff: $PR_DIFF\",
+              \"stream\": false
+            }")
+
+          echo "----- RAW OLLAMA RESPONSE -----"
+          echo "$RESPONSE"
+
+          SUMMARY=$(echo "$RESPONSE" | jq -r '.response // empty')
+          if [ -z "$SUMMARY" ]; then
+            SUMMARY="⚠️ Ollama returned no content. Possible empty PR or model issue."
+          fi
+
+          echo "summary<<EOF" >> $GITHUB_OUTPUT
+          echo "$SUMMARY" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Post AI Review as PR Comment
+        uses: actions/github-script@v7
+        env:
+          REVIEW_SUMMARY: ${{ steps.ai.outputs.summary }}
+        with:
+          github-token: ${{ secrets.PR_COMMENT_TOKEN }}
+          script: |
+            let summary = process.env.REVIEW_SUMMARY || '';
+            summary = summary.trim();
+            if (!summary) {
+              core.setFailed("Summary is empty. Skipping PR comment.");
+            } else {
+              await github.rest.issues.createComment({
+                issue_number: context.payload.pull_request.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: `### 🧠 AI Semantic PR Review with Jira Context (Local Model)\n\n${summary}`
+              });
+            }
