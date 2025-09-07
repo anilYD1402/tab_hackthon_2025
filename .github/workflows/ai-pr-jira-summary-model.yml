@@ -104,7 +104,7 @@ jobs:
             Jira Ticket Context: $JIRA_DESCRIPTION
             PR Diff: $PR_DIFF
 
-            - Your Output Should Include:
+             - Your Output Should Include:
           
                   - ✅  **Semantic Summary per File or Module**
                     - Summarize only meaningful functional or architectural changes in each file.
@@ -120,7 +120,7 @@ jobs:
                      - Mention if further regression testing is needed elsewhere.
                   - 📌 *QA Impact Summary**
                      - List all modified files/classes.
-                     - Describe what QA needs to test based on logic/UI/UX/backend changes.\ 
+                     - Describe what QA needs to test based on logic/UI/UX/backend changes." \
             --argjson stream false \
              '{model: $model, prompt: $prompt, stream: $stream}')
              RESPONSE=$(curl -s -X POST http://localhost:11434/api/generate \
