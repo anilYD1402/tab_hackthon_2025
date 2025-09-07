@@ -87,7 +87,7 @@ jobs:
           echo "Generating semantic AI review with Jira context using local Ollama..."
 
           DIFF_CONTENT=$(cat pr_diff.txt)
-          PR_DIFF=$(echo "$DIFF_CONTENT" | jq -rRs .)
+          PR_DIFF=$(echo "$DIFF_CONTENT" | jq -Rs .)
           echo "---- Escaped PR Diff ----"
           echo "$PR_DIFF"
           
