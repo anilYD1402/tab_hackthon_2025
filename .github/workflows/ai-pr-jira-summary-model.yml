@@ -35,12 +35,12 @@ jobs:
       - name: Get Jira Issue Description
         id: jira
         env:
-          JIRA_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
-          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_TOKEN: ATATT3xFfGF0XDLw-e0O3cSxncDsvvIK6fQeu83QtG_w41Ax7J34HIFUiTLa_NNNzyihs2r4MfxRjMy9fOHtIG_fjBPV1PAKA3L0eansfglgVHw8BuoUTM8ymGnkX4QpwzBtt_kTu8v43yQiL3REuhqSsBQnx-gW0K9o9b7eut7xPqHThYgZaI4=CD08700C
+          JIRA_EMAIL: saurabh.sablok@tabcorp.com.au
         run: |
           echo "Fetching Jira issue description for ${{ steps.extract.outputs.issue_key }}"
           RESPONSE=$(curl -s -u $JIRA_EMAIL:$JIRA_TOKEN \
-            -X GET "https://tusharnigam88.atlassian.net/rest/api/3/issue/${{ steps.extract.outputs.issue_key }}")
+            -X GET "https://tabcorp.atlassian.net/browse/PG-246")
           
           echo "----- RAW Jira API Response (first 1000 chars) -----"
           echo "$RESPONSE" | head -c 1000
@@ -62,8 +62,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.PR_COMMENT_TOKEN }}
         run: |
           curl -s -H "Accept: application/vnd.github.v3.diff" \
-               -H "Authorization: token $GITHUB_TOKEN" \
-               "https://api.github.com/repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}" > pr_diff.txt
+               -H "Authorization: token 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" \
+               "https://github.tabcorp.com.au/TabDigital/Flutter-TAB/pull/14526" > pr_diff.txt
           head -n 50 pr_diff.txt
 
       - name: Check PR Size
@@ -98,7 +98,12 @@ jobs:
           PAYLOAD=$(jq -n \
            --arg model "phi3:mini" \
            --arg prompt "You are a senior Flutter code reviewer with deep understanding of architecture, feature requirements, and quality assurance.
-              Analyze the Pull Request using the Jira Ticket Description & Acceptance Criteria.
+                      Analyze the Pull Request using the Jira Ticket Description & Acceptance Criteria (ACs) along with Git Diff.
+                      Your job is to help reviewers, QA, and product teams understand:
+                      - The semantic code changes,without any code in the summary.
+                      - Their alignment with the Jira ticket.
+                      - QA scope.
+                      - And any potential side effects..
 
            Input:
             Jira Ticket Context: $JIRA_DESCRIPTION
@@ -108,7 +113,7 @@ jobs:
           
                   - ✅  **Semantic Summary per File or Module**
                     - Summarize only meaningful functional or architectural changes in each file.
-                    - Ignore formatting-only, comment, or lint-related changes.
+                    - Ignore formatting-only, comment, lint-related changes and generated files.
                     - Explain how the change aligns with the Jira requirement and what was updated vs. the original code.
                     - Compare code changes with the Jira ticket, highlighting them in bold and red colour any missing Jira items in the code and any extra code changes not mentioned in Jira.
           
