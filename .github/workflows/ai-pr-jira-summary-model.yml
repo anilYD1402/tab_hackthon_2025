@@ -87,7 +87,7 @@ jobs:
           echo "Generating semantic AI review with Jira context using local Ollama..."
 
           DIFF_CONTENT=$(cat pr_diff.txt)
-          PR_DIFF=$(printf "%s" "$DIFF_CONTENT" | base64)   # macOS safe base64
+          PR_DIFF=$(echo "$DIFF_CONTENT" | jq -Rs .)
           
           # Escape Jira description safely for JSON
        
