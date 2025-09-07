@@ -101,14 +101,26 @@ jobs:
               Analyze the Pull Request using the Jira Ticket Description & Acceptance Criteria.
 
            Input:
-          Jira Ticket Context: $JIRA_DESCRIPTION
+            Jira Ticket Context: $JIRA_DESCRIPTION
             PR Diff: $PR_DIFF
 
-            Your Output Should Include:
-           - ✅ Semantic Summary per File or Module
-           - 🎯 Explain what changed vs the original code
-           - 🧪 QA Impact Summary
-           - ⚠️ Potential Side Effects / Affected Modules" \
+            - Your Output Should Include:
+          
+                  - ✅  **Semantic Summary per File or Module**
+                    - Summarize only meaningful functional or architectural changes in each file.
+                    - Ignore formatting-only, comment, or lint-related changes.
+                    - Explain how the change aligns with the Jira requirement and what was updated vs. the original code.
+                    - Compare code changes with the Jira ticket, highlighting them in bold and red colour any missing Jira items in the code and any extra code changes not mentioned in Jira.
+          
+                  - 🎯 Explain **what changed vs the original code** in the context of the Jira ticket.
+                  - 🧪 :mag: Be precise, insightful, and helpful. Use bullet points where needed for clarity. Highlight gaps, concerns, or dependencies clearly.
+                  - ⚠️ **Potential Side Effects / Affected Modules**
+                     - Highlight other areas, modules, or flows that could be impacted by this change.
+                     - Include dependencies, shared components, or reused logic.
+                     - Mention if further regression testing is needed elsewhere.
+                  - 📌 *QA Impact Summary**
+                     - List all modified files/classes.
+                     - Describe what QA needs to test based on logic/UI/UX/backend changes.\ 
             --argjson stream false \
              '{model: $model, prompt: $prompt, stream: $stream}')
              RESPONSE=$(curl -s -X POST http://localhost:11434/api/generate \
