@@ -96,7 +96,22 @@ jobs:
             -H "Content-Type: application/json" \
             -d "{
               \"model\": \"phi3:mini\",
-              \"prompt\": \"You are a senior Flutter code reviewer with deep understanding of architecture, feature requirements, and quality assurance.\nAnalyze the Pull Request using the Jira Ticket Description & Acceptance Criteria (ACs) along with the base64-encoded Git Diff.\nYour job is to help reviewers, QA, and product teams understand:\n- The semantic code changes, without any code in the summary.\n- Their alignment with the Jira ticket.\n- QA scope.\n- And any potential side effects.\n\nInput:\nJira Ticket Context: SAMPLE_JIRA_DESCRIPTION\nBase64-encoded PR Diff: SAMPLE_BASE64_DIFF\n\nYour Output Should Include:\n\n- ✅ Semantic Summary per File or Module\n  - Summarize only meaningful functional or architectural changes in each file.\n  - Ignore formatting-only, comment, or lint-related changes.\n  - Explain how the change aligns with the Jira requirement and what was updated vs. the original code.\n  - Compare code changes with the Jira ticket, highlighting them in bold and red colour any missing Jira items in the code and any extra code changes not mentioned in Jira.\n\n- 🎯 Explain what changed vs the original code in the context of the Jira ticket.\n- 🧪 Be precise, insightful, and helpful. Use bullet points where needed for clarity. Highlight gaps, concerns, or dependencies clearly.\n- ⚠️ Potential Side Effects / Affected Modules\n  - Highlight other areas, modules, or flows that could be impacted by this change.\n  - Include dependencies, shared components, or reused logic.\n  - Mention if further regression testing is needed elsewhere.\n- 📌 QA Impact Summary\n  - List all modified files/classes.\n  - Describe what QA needs to test based on logic/UI/UX/backend changes.\",
+              \"prompt\": \"You are a senior Flutter code reviewer with deep understanding of architecture, feature requirements, and quality assurance.
+                          \nAnalyze the Pull Request using the Jira Ticket Description & Acceptance Criteria (ACs) along with the base64-encoded Git Diff.
+                           \nYour job is to help reviewers, QA, and product teams understand:
+                    \n- The semantic code changes, without any code in the summary.
+                    \n- Their alignment with the Jira ticket.
+                    \n- QA scope.
+                    \n- And any potential side effects.
+          \n\nInput:
+          \nJira Ticket Context: $JIRA_DESCRIPTION
+          \nBase64-encoded PR Diff: $PR_DIFF
+          \n\nYour Output Should Include:
+          \n\n- ✅ Semantic Summary per File or Module
+          \n  - Summarize only meaningful functional or architectural changes in each file.
+          \n  - Ignore formatting-only, comment, or lint-related changes.
+          \n  - Explain how the change aligns with the Jira requirement and what was updated vs. the original code.
+          \n  - Compare code changes with the Jira ticket, highlighting them in bold and red colour any missing Jira items in the code and any extra code changes not mentioned in Jira.\n\n- 🎯 Explain what changed vs the original code in the context of the Jira ticket.\n- 🧪 Be precise, insightful, and helpful. Use bullet points where needed for clarity. Highlight gaps, concerns, or dependencies clearly.\n- ⚠️ Potential Side Effects / Affected Modules\n  - Highlight other areas, modules, or flows that could be impacted by this change.\n  - Include dependencies, shared components, or reused logic.\n  - Mention if further regression testing is needed elsewhere.\n- 📌 QA Impact Summary\n  - List all modified files/classes.\n  - Describe what QA needs to test based on logic/UI/UX/backend changes.\",
               \"stream\": false
             }")
 
