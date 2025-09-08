@@ -107,7 +107,7 @@ jobs:
 
            Input:
       
-            PR Diff: $PR_DIFF
+            PR Diff: $DIFF_CONTENT
 
              - Your Output Should Include:
           
