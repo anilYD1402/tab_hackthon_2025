@@ -87,9 +87,9 @@ jobs:
           echo "Generating semantic AI review with Jira context using local Ollama..."
 
           DIFF_CONTENT=$(cat pr_diff.txt)
-          PR_DIFF=$(jq -Rs . <<< "$DIFF_CONTENT")
+      
           echo "---- Escaped PR Diff ----"
-          echo "$PR_DIFF"
+          echo "DIFF_CONTENT"
           
           # Escape Jira description safely for JSON
        
