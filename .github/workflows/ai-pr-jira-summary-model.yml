@@ -106,7 +106,7 @@ jobs:
                       - And any potential side effects..
 
            Input:
-            Jira Ticket Context: $JIRA_DESCRIPTION
+      
             PR Diff: $PR_DIFF
 
              - Your Output Should Include:
