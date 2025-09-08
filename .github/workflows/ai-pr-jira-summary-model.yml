@@ -63,7 +63,7 @@ jobs:
         run: |
           curl -s -H "Accept: application/vnd.github.v3.diff" \
                -H "Authorization: token $GITHUB_TOKEN" \
-               "https://github.tabcorp.com.au/TabDigital/Flutter-TAB/pull/14526" > pr_diff.txt
+               "https://github.tabcorp.com.au/api/v3/repos/TabDigital/Flutter-TAB/pulls/14526" > pr_diff.txt
           head -n 50 pr_diff.txt
 
       - name: Check PR Size
