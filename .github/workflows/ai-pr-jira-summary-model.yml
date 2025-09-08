@@ -93,7 +93,7 @@ jobs:
           
           # Escape Jira description safely for JSON
        
-          JIRA_DESCRIPTION=$(echo "${{ steps.jira.outputs.description }}" | jq -rRs .)
+          JIRA_DESCRIPTION=$(echo "${{ steps.jira.outputs.raw_json }}" | jq -rRs .)
           echo "$JIRA_DESCRIPTION"
           PAYLOAD=$(jq -n \
            --arg model "phi3:mini" \
