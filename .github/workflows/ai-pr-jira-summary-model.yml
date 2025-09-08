@@ -89,7 +89,7 @@ jobs:
           DIFF_CONTENT=$(cat pr_diff.txt)
       
           echo "---- Escaped PR Diff ----"
-          echo "DIFF_CONTENT"
+          echo "$DIFF_CONTENT"
           
           # Escape Jira description safely for JSON
        
