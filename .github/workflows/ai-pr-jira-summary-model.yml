@@ -35,8 +35,8 @@ jobs:
       - name: Get Jira Issue Description
         id: jira
         env:
-          JIRA_TOKEN: ATATT3xFfGF0XDLw-e0O3cSxncDsvvIK6fQeu83QtG_w41Ax7J34HIFUiTLa_NNNzyihs2r4MfxRjMy9fOHtIG_fjBPV1PAKA3L0eansfglgVHw8BuoUTM8ymGnkX4QpwzBtt_kTu8v43yQiL3REuhqSsBQnx-gW0K9o9b7eut7xPqHThYgZaI4=CD08700C
-          JIRA_EMAIL: saurabh.sablok@tabcorp.com.au
+          JIRA_TOKEN: ${{TAB_JIRA_TOKEN}}
+          JIRA_EMAIL: ${{TAB_JIRA_EMAIL}}
         run: |
           echo "Fetching Jira issue description for ${{ steps.extract.outputs.issue_key }}"
           RESPONSE=$(curl -s -u $JIRA_EMAIL:$JIRA_TOKEN \
@@ -59,10 +59,10 @@ jobs:
       - name: Get Full PR Diff
         id: diff
         env:
-          GITHUB_TOKEN: ${{ secrets.PR_COMMENT_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.TAB_GIT_TOKEN }}
         run: |
           curl -s -H "Accept: application/vnd.github.v3.diff" \
-               -H "Authorization: token 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" \
+               -H "Authorization: token $GITHUB_TOKEN" \
                "https://github.tabcorp.com.au/TabDigital/Flutter-TAB/pull/14526" > pr_diff.txt
           head -n 50 pr_diff.txt
 
