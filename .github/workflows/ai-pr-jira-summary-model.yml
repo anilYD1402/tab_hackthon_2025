@@ -35,12 +35,12 @@ jobs:
       - name: Get Jira Issue Description
         id: jira
         env:
-          JIRA_TOKEN: ${{secrets.TAB_JIRA_TOKEN}}
-          JIRA_EMAIL: ${{secrets.TAB_JIRA_EMAIL}}
+          JIRA_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
         run: |
           echo "Fetching Jira issue description for ${{ steps.extract.outputs.issue_key }}"
           RESPONSE=$(curl -s -u $JIRA_EMAIL:$JIRA_TOKEN \
-            -X GET "https://tabcorp.atlassian.net/browse/PG-246")
+            -X GET "https://tusharnigam88.atlassian.net/rest/api/3/issue/${{ steps.extract.outputs.issue_key }}")
           
           echo "----- RAW Jira API Response (first 1000 chars) -----"
           echo "$RESPONSE" | head -c 1000
@@ -59,11 +59,11 @@ jobs:
       - name: Get Full PR Diff
         id: diff
         env:
-          GITHUB_TOKEN: ${{ secrets.TAB_GIT_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.PR_COMMENT_TOKEN }}
         run: |
           curl -s -H "Accept: application/vnd.github.v3.diff" \
                -H "Authorization: token $GITHUB_TOKEN" \
-               "https://github.tabcorp.com.au/api/v3/repos/TabDigital/Flutter-TAB/pulls/14526" > pr_diff.txt
+               "https://api.github.com/repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}" > pr_diff.txt
           head -n 50 pr_diff.txt
 
       - name: Check PR Size
@@ -87,13 +87,13 @@ jobs:
           echo "Generating semantic AI review with Jira context using local Ollama..."
 
           DIFF_CONTENT=$(cat pr_diff.txt)
-      
+          PR_DIFF=$(jq -Rs . <<< "$DIFF_CONTENT")
           echo "---- Escaped PR Diff ----"
-          echo "$DIFF_CONTENT"
+          echo "$PR_DIFF"
           
           # Escape Jira description safely for JSON
        
-          JIRA_DESCRIPTION=$(echo "${{ steps.jira.outputs.raw_json }}" | jq -rRs .)
+          JIRA_DESCRIPTION=$(echo "${{ steps.jira.outputs.description }}" | jq -rRs .)
           echo "$JIRA_DESCRIPTION"
           PAYLOAD=$(jq -n \
            --arg model "phi3:mini" \
@@ -106,14 +106,14 @@ jobs:
                       - And any potential side effects..
 
            Input:
-      
-            PR Diff: $DIFF_CONTENT
+            Jira Ticket Context: $JIRA_DESCRIPTION
+            PR Diff: $PR_DIFF
 
              - Your Output Should Include:
           
                   - ✅  **Semantic Summary per File or Module**
                     - Summarize only meaningful functional or architectural changes in each file.
-                    - Ignore formatting-only, comment, lint-related changes and generated files.
+                    - Ignore formatting-only, comment, or lint-related changes.
                     - Explain how the change aligns with the Jira requirement and what was updated vs. the original code.
                     - Compare code changes with the Jira ticket, highlighting them in bold and red colour any missing Jira items in the code and any extra code changes not mentioned in Jira.
           
