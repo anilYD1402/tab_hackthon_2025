@@ -44,17 +44,11 @@ jobs:
           
           echo "----- RAW Jira API Response (first 1000 chars) -----"
           echo "$RESPONSE" | head -c 1000
-          
-          DESCRIPTION=$(echo "$RESPONSE" | jq -r '
-            def walkContent:
-              .[] | if .content then (.content | walkContent) else .text end;
-            .fields.description.content | walkContent
-          ' | tr '\n' ' ')
-          
-          echo "----- Parsed Jira Description -----"
-          echo "$DESCRIPTION"
-          
-          echo "description=$DESCRIPTION" >> $GITHUB_OUTPUT
+
+          # Instead of parsing, just output raw JSON
+          echo "description<<EOF" >> $GITHUB_OUTPUT
+          echo "$RESPONSE" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Get Full PR Diff
         id: diff
@@ -94,6 +88,7 @@ jobs:
           # Escape Jira description safely for JSON
           
           JIRA_DESCRIPTION=$(echo "${{ steps.jira.outputs.raw_json }}" | jq -rRs .)
+           echo "---- Escaped Jira JSON ----"
           echo "$JIRA_DESCRIPTION"
           PAYLOAD=$(jq -n \
            --arg model "phi3:mini" \
