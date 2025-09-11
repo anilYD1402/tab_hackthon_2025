@@ -1,8 +1,8 @@
-name: AI PR Review Summary
+name: AI PR Review Summary Model Tab
 
 on:
   pull_request:
-    //types: [opened, synchronize, reopened]
+    types: [opened, synchronize, reopened]
 
 permissions:
   contents: read
@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   summarize:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, macOS, ARM64]
 
     steps:
       - name: Checkout code
@@ -30,44 +30,34 @@ jobs:
         id: extract
         run: |
           ISSUE_KEY=$(echo "${{ github.event.pull_request.title }}" | grep -oE '[A-Za-z]+-[0-9]+' | tr '[:lower:]' '[:upper:]')
-          echo "Extracted Jira Issue Key: $ISSUE_KEY"
           echo "issue_key=$ISSUE_KEY" >> $GITHUB_OUTPUT
 
       - name: Get Jira Issue Description
         id: jira
         env:
-          JIRA_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
-          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_TOKEN: ${{secrets.TAB_JIRA_TOKEN}}
+          JIRA_EMAIL: ${{secrets.TAB_JIRA_EMAIL}}
         run: |
           echo "Fetching Jira issue description for ${{ steps.extract.outputs.issue_key }}"
           RESPONSE=$(curl -s -u $JIRA_EMAIL:$JIRA_TOKEN \
-            -X GET "https://tusharnigam88.atlassian.net/rest/api/3/issue/${{ steps.extract.outputs.issue_key }}")
-
+            -X GET "https://tabcorp.atlassian.net/browse/PG-246")
+          
           echo "----- RAW Jira API Response (first 1000 chars) -----"
           echo "$RESPONSE" | head -c 1000
 
-          DESCRIPTION=$(echo "$RESPONSE" | jq -r '
-            def walkContent:
-              .[] | if .content then (.content | walkContent) else .text end;
-            .fields.description.content | walkContent
-          ' | tr '\n' ' ')
-
-          echo "----- Parsed Jira Description -----"
-          echo "$DESCRIPTION"
-
-          echo "description=$DESCRIPTION" >> $GITHUB_OUTPUT
+          # Instead of parsing, just output raw JSON
+          echo "description<<EOF" >> $GITHUB_OUTPUT
+          echo "$RESPONSE" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Get Full PR Diff
         id: diff
         env:
-          GITHUB_TOKEN: ${{ secrets.PR_COMMENT_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.TAB_GIT_TOKEN }}
         run: |
-          echo "Fetching full PR diff for PR #${{ github.event.pull_request.number }}"
           curl -s -H "Accept: application/vnd.github.v3.diff" \
                -H "Authorization: token $GITHUB_TOKEN" \
-               "https://api.github.com/repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}" > pr_diff.txt
-
-          echo "----- First 50 lines of Diff -----"
+               "https://github.tabcorp.com.au/api/v3/repos/TabDigital/Flutter-TAB/pulls/14526" > pr_diff.txt
           head -n 50 pr_diff.txt
 
       - name: Check PR Size
@@ -76,53 +66,52 @@ jobs:
         with:
           github-token: ${{ secrets.PR_COMMENT_TOKEN }}
           script: |
-            const { data: pullRequest } = await github.rest.pulls.get({
+            const { data: pr } = await github.rest.pulls.get({
               owner: context.repo.owner,
               repo: context.repo.repo,
               pull_number: context.payload.pull_request.number,
             });
-            core.setOutput("changed_files", pullRequest.changed_files);
+            core.setOutput("changed_files", pr.changed_files);
 
-      - name: Generate Semantic AI Review with Jira Context
+      - name: Generate Semantic AI Review with Jira Context (Local Ollama)
         id: ai
         if: steps.pr_size.outputs.changed_files <= 100
-        env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        shell: bash
         run: |
-          echo "Generating semantic AI review with Jira context..."
+          echo "Generating semantic AI review with Jira context using local Ollama..."
 
           DIFF_CONTENT=$(cat pr_diff.txt)
-          PR_DIFF=$(echo "$DIFF_CONTENT" | base64 -w 0)
-           echo "---- Escaped PR Diff ----"
-           echo "$PR_DIFF"
-          JIRA_DESCRIPTION="${{ steps.jira.outputs.description }}"
-
-          RESPONSE=$(curl -s -X POST \
-            "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$GEMINI_API_KEY" \
-            -H "Content-Type: application/json" \
-            -d "{
-              \"contents\": [{
-                \"role\": \"user\",
-                \"parts\": [{
-                  \"text\": \"You are a senior Flutter code reviewer with deep understanding of architecture, feature requirements, and quality assurance.
-                      Analyze the Pull Request using the Jira Ticket Description & Acceptance Criteria (ACs) along with the base64-encoded Git Diff.
+          
+          echo "---- Escaped PR Diff ----"
+          echo "$DIFF_CONTENT"
+          
+          # Escape Jira description safely for JSON
+          
+          JIRA_DESCRIPTION=$(echo "${{ steps.jira.outputs.raw_json }}" | jq -rRs .)
+           echo "---- Escaped Jira JSON ----"
+          echo "$JIRA_DESCRIPTION"
+          PAYLOAD=$(jq -n \
+           --arg model "phi3:mini" \
+           --arg prompt "You are a senior Flutter code reviewer with deep understanding of architecture, feature requirements, and quality assurance.
+                      Analyze the Pull Request using the Jira Ticket Description & Acceptance Criteria (ACs) along with Git Diff.
                       Your job is to help reviewers, QA, and product teams understand:
                       - The semantic code changes,without any code in the summary.
                       - Their alignment with the Jira ticket.
                       - QA scope.
                       - And any potential side effects..
-                   - Input:
-                     Jira Ticket Context:$JIRA_DESCRIPTION
-                     Base64-encoded PR Diff:$PR_DIFF
+
+           Input:
+            Jira Ticket Context: $JIRA_DESCRIPTION
+            PR Diff: $DIFF_CONTENT
+
+             - Your Output Should Include:
           
-                  - Your Output Should Include:
-              
                   - ✅  **Semantic Summary per File or Module**
                     - Summarize only meaningful functional or architectural changes in each file.
-                    - Ignore formatting-only, comment, or lint-related changes.
+                    - Ignore formatting-only, comment, lint-related changes and generated files.
                     - Explain how the change aligns with the Jira requirement and what was updated vs. the original code.
                     - Compare code changes with the Jira ticket, highlighting them in bold and red colour any missing Jira items in the code and any extra code changes not mentioned in Jira.
-              
+          
                   - 🎯 Explain **what changed vs the original code** in the context of the Jira ticket.
                   - 🧪 :mag: Be precise, insightful, and helpful. Use bullet points where needed for clarity. Highlight gaps, concerns, or dependencies clearly.
                   - ⚠️ **Potential Side Effects / Affected Modules**
@@ -131,20 +120,26 @@ jobs:
                      - Mention if further regression testing is needed elsewhere.
                   - 📌 *QA Impact Summary**
                      - List all modified files/classes.
-                     - Describe what QA needs to test based on logic/UI/UX/backend changes.\"
-                }]
-              }]
-            }")
+                     - Describe what QA needs to test based on logic/UI/UX/backend changes.
+                  Rules:
+                      - Do not suggest unrelated summary (generated files, mock files, semantics changes, etc.)
+                         unless directly relevant to the DIFF_CONTENT and JIRA_DESCRIPTION.
+                      - Keep the answer under 150 words.
+                      - Focus ONLY on the given inputs.
+              " \
+            --argjson stream false \
+             '{model: $model, prompt: $prompt, stream: $stream}')
+             RESPONSE=$(curl -s -X POST http://localhost:11434/api/generate \
+               -H "Content-Type: application/json" \
+                -d "$PAYLOAD")
 
-          echo "----- RAW GEMINI RESPONSE -----"
+          echo "----- RAW OLLAMA RESPONSE -----"
           echo "$RESPONSE"
 
-          SUMMARY=$(echo "$RESPONSE" | jq -r '.candidates[0].content.parts[0].text // empty')
+          SUMMARY=$(echo "$RESPONSE" | jq -r '.response // empty')
           if [ -z "$SUMMARY" ]; then
-            SUMMARY="⚠️ Gemini returned no content. Possible empty PR or API issue."
+            SUMMARY="⚠️ Ollama returned no content. Possible empty PR or model issue."
           fi
-          echo "----- Extracted Summary -----"
-          echo "$SUMMARY"
 
           echo "summary<<EOF" >> $GITHUB_OUTPUT
           echo "$SUMMARY" >> $GITHUB_OUTPUT
@@ -157,26 +152,16 @@ jobs:
         with:
           github-token: ${{ secrets.PR_COMMENT_TOKEN }}
           script: |
-            let summary = process.env.REVIEW_SUMMARY;
-               // Trim whitespace
-              summary = summary.trim();
-
-             // Remove ```markdown or ``` from start and end (case-insensitive)
-              summary = summary
-             .replace(/^```(?:markdown)?\n?/, "") // remove opening code fence
-             .replace(/```$/, "") // remove closing code fence
-             .replace(/\n?\{\}\s*$/, "") // remove trailing {}
-             .replace(/^###.*\n/, ""); // remove the first markdown heading line
-  
-            if (!summary || summary.trim() === "null") {
+            let summary = process.env.REVIEW_SUMMARY || '';
+            summary = summary.trim();
+            if (!summary) {
               core.setFailed("Summary is empty. Skipping PR comment.");
             } else {
               await github.rest.issues.createComment({
                 issue_number: context.payload.pull_request.number,
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                body: `### 🧠 AI Semantic PR Review with Jira Context
-  
-                 ${summary}`
+                body: `### 🧠 AI Semantic PR Review with Jira Context (Local Model)\n\n${summary}`
               });
             }
+

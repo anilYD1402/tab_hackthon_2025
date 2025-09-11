@@ -96,7 +96,7 @@ jobs:
           JIRA_DESCRIPTION=$(echo "${{ steps.jira.outputs.description }}" | jq -rRs .)
           echo "$JIRA_DESCRIPTION"
           PAYLOAD=$(jq -n \
-           --arg model "phi3:mini" \
+           --arg model "phi3:medium" \
            --arg prompt "You are a senior Flutter code reviewer with deep understanding of architecture, feature requirements, and quality assurance.
                       Analyze the Pull Request using the Jira Ticket Description & Acceptance Criteria (ACs) along with Git Diff.
                       Your job is to help reviewers, QA, and product teams understand:
