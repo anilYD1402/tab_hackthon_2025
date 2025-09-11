@@ -120,7 +120,13 @@ jobs:
                      - Mention if further regression testing is needed elsewhere.
                   - 📌 *QA Impact Summary**
                      - List all modified files/classes.
-                     - Describe what QA needs to test based on logic/UI/UX/backend changes." \
+                     - Describe what QA needs to test based on logic/UI/UX/backend changes.
+                  Rules:
+                      - Do not suggest unrelated summary (generated files, mock files, semantics changes, etc.)
+                         unless directly relevant to the DIFF_CONTENT and JIRA_DESCRIPTION.
+                      - Keep the answer under 150 words.
+                      - Focus ONLY on the given inputs.
+              " \
             --argjson stream false \
              '{model: $model, prompt: $prompt, stream: $stream}')
              RESPONSE=$(curl -s -X POST http://localhost:11434/api/generate \
