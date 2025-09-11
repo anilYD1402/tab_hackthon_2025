@@ -2,7 +2,7 @@ name: AI PR Review Summary Model
 
 on:
   pull_request:
-   // types: [opened, synchronize, reopened]
+   types: [opened, synchronize, reopened]
 
 permissions:
   contents: read
@@ -127,11 +127,9 @@ jobs:
                      - List all modified files/classes.
                      - Describe what QA needs to test based on logic/UI/UX/backend changes.
                    Rules:
-                      - Do not suggest unrelated summary (generated files, mock files, semantics changes, ai-pr-jira-summary-model.yml etc.)
-                         unless directly relevant to the DIFF_CONTENT and JIRA_DESCRIPTION.
-                      - Keep the answer under 150 words.
-                      - Focus ONLY on the given inputs.
-                      
+                      - Do not suggest things which are not available in jira and git diff and ignore these files generated files- mock files, semantics changes, ai-pr-jira-summary-model.yml etc. 
+                      - Make this summary in a formatted way to post on git as comment.
+                      - Make this summary in precise way.
                   " \
             --argjson stream false \
              '{model: $model, prompt: $prompt, stream: $stream}')
