@@ -127,10 +127,11 @@ jobs:
                      - List all modified files/classes.
                      - Describe what QA needs to test based on logic/UI/UX/backend changes.
                    Rules:
-                      - Do not suggest unrelated summary (generated files, mock files, semantics changes, etc.)
+                      - Do not suggest unrelated summary (generated files, mock files, semantics changes, ai-pr-jira-summary-model.yml etc.)
                          unless directly relevant to the DIFF_CONTENT and JIRA_DESCRIPTION.
                       - Keep the answer under 150 words.
                       - Focus ONLY on the given inputs.
+                      
                   " \
             --argjson stream false \
              '{model: $model, prompt: $prompt, stream: $stream}')
