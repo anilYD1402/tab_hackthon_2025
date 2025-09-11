@@ -2,7 +2,7 @@ name: AI PR Review Summary Model
 
 on:
   pull_request:
-   types: [opened, synchronize, reopened]
+    types: [opened, synchronize, reopened]
 
 permissions:
   contents: read
@@ -96,7 +96,7 @@ jobs:
           JIRA_DESCRIPTION=$(echo "${{ steps.jira.outputs.description }}" | jq -rRs .)
           echo "$JIRA_DESCRIPTION"
           PAYLOAD=$(jq -n \
-           --arg model "phi3:mini" \
+           --arg model "phi3:medium" \
            --arg prompt "You are a senior Flutter code reviewer with deep understanding of architecture, feature requirements, and quality assurance.
                       Analyze the Pull Request using the Jira Ticket Description & Acceptance Criteria (ACs) along with Git Diff.
                       Your job is to help reviewers, QA, and product teams understand:
@@ -125,12 +125,7 @@ jobs:
                      - Mention if further regression testing is needed elsewhere.
                   - 📌 *QA Impact Summary**
                      - List all modified files/classes.
-                     - Describe what QA needs to test based on logic/UI/UX/backend changes.
-                   Rules:
-                      - Do not suggest things which are not available in jira and git diff and ignore these files generated files- mock files, semantics changes, ai-pr-jira-summary-model.yml etc. 
-                      - Make this summary in a formatted way to post on git as comment.
-                      - Make this summary in precise way.
-                  " \
+                     - Describe what QA needs to test based on logic/UI/UX/backend changes." \
             --argjson stream false \
              '{model: $model, prompt: $prompt, stream: $stream}')
              RESPONSE=$(curl -s -X POST http://localhost:11434/api/generate \
