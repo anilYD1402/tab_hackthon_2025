@@ -93,6 +93,8 @@ jobs:
 
           DIFF_CONTENT=$(cat pr_diff.txt)
           PR_DIFF=$(echo "$DIFF_CONTENT" | base64 -w 0)
+           echo "---- Escaped PR Diff ----"
+           echo "$PR_DIFF"
           JIRA_DESCRIPTION="${{ steps.jira.outputs.description }}"
 
           RESPONSE=$(curl -s -X POST \
