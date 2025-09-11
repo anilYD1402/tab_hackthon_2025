@@ -1,4 +1,4 @@
-name: AI PR Review Summary Model
+name: AI PR Review Summary Model Tab
 
 on:
   pull_request:
@@ -106,7 +106,7 @@ jobs:
                       - And any potential side effects..
 
            Input:
-          
+            Jira Ticket Context: $JIRA_DESCRIPTION
             PR Diff: $DIFF_CONTENT
 
              - Your Output Should Include:
