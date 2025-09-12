@@ -2,7 +2,7 @@ name: AI PR Review Summary
 
 on:
   pull_request:
-    types: [ opened, synchronize, reopened ]
+    types: [opened, synchronize, reopened]
 
 permissions:
   contents: read
@@ -95,156 +95,86 @@ jobs:
           PR_DIFF=$(echo "$DIFF_CONTENT" | base64 -w 0)
           JIRA_DESCRIPTION="${{ steps.jira.outputs.description }}"
 
-          # Create prompt file
-          cat <<'EOF' > prompt.txt
-          You are a senior Flutter code reviewer with deep understanding of architecture, feature requirements, and quality assurance.
+          RESPONSE=$(curl -s -X POST \
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$GEMINI_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"contents\": [{
+                \"role\": \"user\",
+                \"parts\": [{
+                  \"text\": \"You are a senior Flutter code reviewer with deep understanding of architecture, feature requirements, and quality assurance.
+                      Analyze the Pull Request using the Jira Ticket Description & Acceptance Criteria (ACs) along with the base64-encoded Git Diff.
+                      Your job is to help reviewers, QA, and product teams understand:
+                      - The semantic code changes,without any code in the summary.
+                      - Their alignment with the Jira ticket.
+                      - QA scope.
+                      - And any potential side effects..
+                   - Input:
+                     Jira Ticket Context:$JIRA_DESCRIPTION
+                     Base64-encoded PR Diff:$PR_DIFF
           
-          Analyze the Pull Request using the Jira Ticket Description & Acceptance Criteria (ACs) along with the base64-encoded Git Diff.
-
-Your job is to help reviewers, QA, and product teams understand:
-  - The semantic code changes, without any code in the summary.
-  - Their alignment with the Jira ticket.
-  - QA scope.
-  - And any potential side effects.
-
-Jira Ticket Context:
-  {{JIRA_DESCRIPTION}}
-
-Base64-encoded PR Diff:
-  {{PR_DIFF}}
-
-Your Output Should Include:
-  - Respond only in valid GitHub Markdown format.
-  - ✅ **Semantic Summary per File or Module**
-    - Summarize only meaningful functional or architectural changes in each file.
-    - Ignore formatting-only, comment, or lint-related changes.
-    - Explain how the change aligns with the Jira requirement and what was updated vs. the original code.
-    - Compare code changes with the Jira ticket, highlighting them in bold and red colour any missing Jira items in the code and any extra code changes not mentioned in Jira.
-
-  - 🎯 Explain **what changed vs the original code** in the context of the Jira ticket.
-  - 🧪 Be precise, insightful, and helpful. Use bullet points where needed for clarity. Highlight gaps, concerns, or dependencies clearly.
-  - ⚠️ **Potential Side Effects / Affected Modules**
-    - Highlight other areas, modules, or flows that could be impacted by this change.
-    - Include dependencies, shared components, or reused logic.
-    - Mention if further regression testing is needed elsewhere.
-  - 📌 **QA Impact Summary**
-    - List all modified files/classes.
-    - Describe what QA needs to test based on logic/UI/UX/backend changes.
-    EOF
-  
-    # Replace placeholders with real values safely
-    sed -i "s|{{JIRA_DESCRIPTION}}|$JIRA_DESCRIPTION|g" prompt.txt
-    sed -i "s|{{PR_DIFF}}|$PR_DIFF|g" prompt.txt
-    
-    PROMPT_ESCAPED=$(jq -Rs '.' prompt.txt)
-    
-    RESPONSE=$(curl -s -X POST \
-    "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$GEMINI_API_KEY" \
--H "Content-Type: application/json" \
-  -d "{
-\"contents\": [ {
-  \"role\": \"user\",
-  \"parts\": [ { \"text\": $PROMPT_ESCAPED } ]
-            } ]
-      }")
+                  - Your Output Should Include:
+              
+                  - ✅  **Semantic Summary per File or Module**
+                    - Summarize only meaningful functional or architectural changes in each file.
+                    - Ignore formatting-only, comment, or lint-related changes.
+                    - Explain how the change aligns with the Jira requirement and what was updated vs. the original code.
+                    - Compare code changes with the Jira ticket, highlighting them in bold and red colour any missing Jira items in the code and any extra code changes not mentioned in Jira.
+              
+                  - 🎯 Explain **what changed vs the original code** in the context of the Jira ticket.
+                  - 🧪 :mag: Be precise, insightful, and helpful. Use bullet points where needed for clarity. Highlight gaps, concerns, or dependencies clearly.
+                  - ⚠️ **Potential Side Effects / Affected Modules**
+                     - Highlight other areas, modules, or flows that could be impacted by this change.
+                     - Include dependencies, shared components, or reused logic.
+                     - Mention if further regression testing is needed elsewhere.
+                  - 📌 *QA Impact Summary**
+                     - List all modified files/classes.
+                     - Describe what QA needs to test based on logic/UI/UX/backend changes.\"
+                }]
+              }]
+            }")
 
           echo "----- RAW GEMINI RESPONSE -----"
-                echo "$RESPONSE"
-                
-                SUMMARY=$(echo "$RESPONSE" | jq -r '.candidates[0].content.parts[0].text // empty')
-                if [ -z "$SUMMARY" ]; then
-                SUMMARY="⚠️ Gemini returned no content. Possible empty PR or API issue."
-                fi
-                
-                echo "----- Extracted Summary -----"
-                echo "$SUMMARY"
-                
-                echo "summary<<EOF" >> $GITHUB_OUTPUT
-                echo "$SUMMARY" >> $GITHUB_OUTPUT
-                echo "EOF" >> $GITHUB_OUTPUT
+          echo "$RESPONSE"
 
+          SUMMARY=$(echo "$RESPONSE" | jq -r '.candidates[0].content.parts[0].text // empty')
+          if [ -z "$SUMMARY" ]; then
+            SUMMARY="⚠️ Gemini returned no content. Possible empty PR or API issue."
+          fi
+          echo "----- Extracted Summary -----"
+          echo "$SUMMARY"
 
+          echo "summary<<EOF" >> $GITHUB_OUTPUT
+          echo "$SUMMARY" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
-  #      - name: Generate Semantic AI Review with Jira Context
-  #        id: ai
-  #        if: steps.pr_size.outputs.changed_files <= 100
-  #        env:
-  #          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-  #        run: |
-  #          echo "Generating semantic AI review with Jira context..."
-  #
-  #          DIFF_CONTENT=$(cat pr_diff.txt)
-  #          PR_DIFF=$(echo "$DIFF_CONTENT" | base64 -w 0)
-  #          JIRA_DESCRIPTION="${{ steps.jira.outputs.description }}"
-  #
-  #          RESPONSE=$(curl -s -X POST \
-  #            "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$GEMINI_API_KEY" \
-  #            -H "Content-Type: application/json" \
-  #            -d "{
-  #              \"contents\": [{
-  #                \"role\": \"user\",
-  #                \"parts\": [{
-  #                  \"text\": \"You are a senior Flutter code reviewer with deep understanding of architecture, feature requirements, and quality assurance.
-  #                      Analyze the Pull Request using the Jira Ticket Description & Acceptance Criteria (ACs) along with the base64-encoded Git Diff.
-  #                      Your job is to help reviewers, QA, and product teams understand:
-  #                      - The semantic code changes,without any code in the summary.
-  #                      - Their alignment with the Jira ticket.
-  #                      - QA scope.
-  #                      - And any potential side effects..
-  #                   - Input:
-  #                     Jira Ticket Context:$JIRA_DESCRIPTION
-  #                     Base64-encoded PR Diff:$PR_DIFF
-  #
-  #                  - Your Output Should Include:
-  #                  - Respond only in valid GitHub Markdown format.
-  #                  - ✅  **Semantic Summary per File or Module**
-  #                    - Summarize only meaningful functional or architectural changes in each file.
-  #                    - Ignore formatting-only, comment, or lint-related changes.
-  #                    - Explain how the change aligns with the Jira requirement and what was updated vs. the original code.
-  #                    - Compare code changes with the Jira ticket, highlighting them in bold and red colour any missing Jira items in the code and any extra code changes not mentioned in Jira.
-  #
-  #                  - 🎯 Explain **what changed vs the original code** in the context of the Jira ticket.
-  #                  - 🧪 :mag: Be precise, insightful, and helpful. Use bullet points where needed for clarity. Highlight gaps, concerns, or dependencies clearly.
-  #                  - ⚠️ **Potential Side Effects / Affected Modules**
-  #                     - Highlight other areas, modules, or flows that could be impacted by this change.
-  #                     - Include dependencies, shared components, or reused logic.
-  #                     - Mention if further regression testing is needed elsewhere.
-  #                  - 📌 *QA Impact Summary**
-  #                     - List all modified files/classes.
-  #                     - Describe what QA needs to test based on logic/UI/UX/backend changes.\"
-  #                }]
-  #              }]
-  #            }")
-  #
-  #          echo "----- RAW GEMINI RESPONSE -----"
-  #          echo "$RESPONSE"
-  #
-  #          SUMMARY=$(echo "$RESPONSE" | jq -r '.candidates[0].content.parts[0].text // empty')
-  #          if [ -z "$SUMMARY" ]; then
-  #            SUMMARY="⚠️ Gemini returned no content. Possible empty PR or API issue."
-  #          fi
-  #          echo "----- Extracted Summary -----"
-  #          echo "$SUMMARY"
-  #
-  #          echo "summary<<EOF" >> $GITHUB_OUTPUT
-  #          echo "$SUMMARY" >> $GITHUB_OUTPUT
-  #          echo "EOF" >> $GITHUB_OUTPUT
+      - name: Post AI Review as PR Comment
+        uses: actions/github-script@v7
+        env:
+          REVIEW_SUMMARY: ${{ steps.ai.outputs.summary }}
+        with:
+          github-token: ${{ secrets.PR_COMMENT_TOKEN }}
+          script: |
+            let summary = process.env.REVIEW_SUMMARY;
+               // Trim whitespace
+              summary = summary.trim();
 
-                - name: Post AI Review as PR Comment
-                  uses: actions/github-script@v7
-                  env:
-                    REVIEW_SUMMARY: ${{ steps.ai.outputs.summary }}
-                  with:
-                    github-token: ${{ secrets.PR_COMMENT_TOKEN }}
-                    script: |
-                      const summary = process.env.REVIEW_SUMMARY;
-                      if (!summary || summary.trim() === "null") {
-                        core.setFailed("Summary is empty. Skipping PR comment.");
-                      } else {
-                        await github.rest.issues.createComment({
-                          issue_number: context.payload.pull_request.number,
-                          owner: context.repo.owner,
-                          repo: context.repo.repo,
-                          body: "## 🧠 AI Semantic PR Review with Jira Context\n\n" + summary
-                        });
-                      }
+             // Remove ```markdown or ``` from start and end (case-insensitive)
+              summary = summary
+             .replace(/^```(?:markdown)?\n?/, "") // remove opening code fence
+             .replace(/```$/, "") // remove closing code fence
+             .replace(/\n?\{\}\s*$/, "") // remove trailing {}
+             .replace(/^###.*\n/, ""); // remove the first markdown heading line
+  
+            if (!summary || summary.trim() === "null") {
+              core.setFailed("Summary is empty. Skipping PR comment.");
+            } else {
+              await github.rest.issues.createComment({
+                issue_number: context.payload.pull_request.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: `### 🧠 AI Semantic PR Review with Jira Context
+  
+                 ${summary}`
+              });
+            }
