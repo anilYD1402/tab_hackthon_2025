@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:tab_hackthon/user_prifile_screen.dart';
 
 void main() {
   runApp(const MyApp());
@@ -114,7 +115,10 @@ class _MyHomePageState extends State<MyHomePage> {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
-          _incrementCounter();
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const UserProfileScreen()),
+          );
         },
         tooltip: 'Create Profile',
         child: const Icon(Icons.person_add),
