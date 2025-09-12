@@ -109,14 +109,13 @@ jobs:
             Jira Ticket Context: $JIRA_DESCRIPTION
             PR Diff: $PR_DIFF
 
-             - Your Output Should Include:
+             - Your tasks:
           
                   - ✅  **Semantic Summary per File or Module**
                     - Summarize only meaningful functional or architectural changes in each file.
                     - Ignore formatting-only, comment, or lint-related changes.
                     - Explain how the change aligns with the Jira requirement and what was updated vs. the original code.
-                    - Compare code changes with the Jira ticket, highlighting them in bold and red colour any missing Jira items in the code and any extra code changes not mentioned in Jira.
-          
+                    -Compare the code changes against the Jira ticket. Highlight any Jira requirements that are missing in the code (in bold and red), and also highlight any extra code changes not specified in the Jira ticket.          
                   - 🎯 Explain **what changed vs the original code** in the context of the Jira ticket.
                   - 🧪 :mag: Be precise, insightful, and helpful. Use bullet points where needed for clarity. Highlight gaps, concerns, or dependencies clearly.
                   - ⚠️ **Potential Side Effects / Affected Modules**
