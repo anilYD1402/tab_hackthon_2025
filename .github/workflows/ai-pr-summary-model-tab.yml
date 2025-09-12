@@ -40,7 +40,7 @@ jobs:
         run: |
           echo "Fetching Jira issue description for ${{ steps.extract.outputs.issue_key }}"
           RESPONSE=$(curl -s -u $JIRA_EMAIL:$JIRA_TOKEN \
-            -X GET "https://tabcorp.atlassian.net/browse/PG-246")
+            -X GET "https://tabcorp.atlassian.net/rest/api/3/issue/SM-1997")
           
           echo "----- RAW Jira API Response (first 1000 chars) -----"
           echo "$RESPONSE" | head -c 1000
@@ -49,6 +49,42 @@ jobs:
           echo "description<<EOF" >> $GITHUB_OUTPUT
           echo "$RESPONSE" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
+           echo "----- RAW Jira API Response (first 1000 chars) -----"
+          echo "${{ steps.jira.outputs.description }}" | head -c 1000
+
+           RESPONSE='${{ steps.jira.outputs.description }}'
+
+          # Parse summary (try parent.summary first, fallback to summary)
+          SUMMARY=$(echo "$RESPONSE" | jq -r '.fields.parent.fields.summary // .fields.summary')
+    
+             # Parse description (flatten all text nodes)
+            DESCRIPTION=$(echo "$RESPONSE" | jq -r '
+            def walkContent:
+             .[] | if .content then (.content | walkContent) else .text end;
+           .fields.description.content | walkContent
+            ' | tr '\n' ' ')
+    
+           # Parse customfield_10064 (Acceptance Criteria) as plain text
+           CF_10064=$(echo "$RESPONSE" | jq -r '
+           def walkContent:
+           .[] | if .content then (.content | walkContent) else .text end;
+           .fields.customfield_10064.content | walkContent
+           ' | tr '\n' ' ')
+
+           # Parse customfield_10072 (if present)
+           CF_10072=$(echo "$RESPONSE" | jq -r '.fields.customfield_10072 // empty')
+
+          # Output all fields to GitHub Actions
+          echo "summary=$SUMMARY" >> $GITHUB_OUTPUT
+          echo "description=$DESCRIPTION" >> $GITHUB_OUTPUT
+          echo "customfield_10064=$CF_10064" >> $GITHUB_OUTPUT
+           echo "customfield_10072=$CF_10072" >> $GITHUB_OUTPUT
+
+             echo "----- Parsed Jira Fields -----"
+             echo "Summary: $SUMMARY"
+             echo "Description: $DESCRIPTION"
+             echo "customfield_10064: $CF_10064"
+             echo "customfield_10072: $CF_10072"
 
       - name: Get Full PR Diff
         id: diff
@@ -57,7 +93,7 @@ jobs:
         run: |
           curl -s -H "Accept: application/vnd.github.v3.diff" \
                -H "Authorization: token $GITHUB_TOKEN" \
-               "https://github.tabcorp.com.au/api/v3/repos/TabDigital/Flutter-TAB/pulls/14526" > pr_diff.txt
+               "https://github.tabcorp.com.au/api/v3/repos/TabDigital/Flutter-TAB/pulls/14799" > pr_diff.txt
           head -n 50 pr_diff.txt
 
       - name: Check PR Size
