@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:tab_hackthon/settings/screen/profile_screen.dart';
+import 'package:tab_hackthon/settings/user_profile_screen.dart';
 
 void main() {
   runApp(const MyApp());
