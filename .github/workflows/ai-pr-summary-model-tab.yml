@@ -32,58 +32,59 @@ jobs:
           ISSUE_KEY=$(echo "${{ github.event.pull_request.title }}" | grep -oE '[A-Za-z]+-[0-9]+' | tr '[:lower:]' '[:upper:]')
           echo "issue_key=$ISSUE_KEY" >> $GITHUB_OUTPUT
 
-      - name: Get Jira Issue Description
-        id: jira
-        env:
-          JIRA_TOKEN: ${{secrets.TAB_JIRA_TOKEN}}
-          JIRA_EMAIL: ${{secrets.TAB_JIRA_EMAIL}}
-        run: |
-          echo "Fetching Jira issue description for ${{ steps.extract.outputs.issue_key }}"
-          RESPONSE=$(curl -s -u $JIRA_EMAIL:$JIRA_TOKEN \
-            -X GET "https://tabcorp.atlassian.net/rest/api/3/issue/SM-1860")
-          
-          SUMMARY=$(echo "$RESPONSE" | jq -r '.fields.summary // "No Summary"')
-  
-          DESCRIPTION=$(echo "$RESPONSE" | jq -r '
-           if .fields.description == null then
-          "No Description"
-          elif .fields.description | has("content") then
-         def walkContent: .[] | if .content then (.content | walkContent) else .text end;
-         .fields.description.content | walkContent
-         else
-         .fields.description
-          end
-         ' | tr '\n' ' ')
-  
-         CF_10064=$(echo "$RESPONSE" | jq -r '
-          if .fields.customfield_10064 == null then
-         "No Acceptance Criteria"
-          else
-          def walkContent: .[] | if .content then (.content | walkContent) else .text end;
-         .fields.customfield_10064.content | walkContent
-          end
-          ' | tr '\n' ' ')
-  
-         CF_10072=$(echo "$RESPONSE" | jq -r '.fields.customfield_10072 // "Not Set"')
-      
-         echo "----- Parsed Jira Fields -----"
-         echo "Summary: $SUMMARY"
-          echo "Description: $DESCRIPTION"
-          echo "customfield_10064: $CF_10064"
-          echo "customfield_10072: $CF_10072"
-
-        # Export to GitHub Actions
-          echo "summary=$SUMMARY" >> $GITHUB_OUTPUT
-          echo "description=$DESCRIPTION" >> $GITHUB_OUTPUT
-          echo "customfield_10064=$CF_10064" >> $GITHUB_OUTPUT
-          echo "customfield_10072=$CF_10072" >> $GITHUB_OUTPUT
-
-
-
-
-
-
-
+         - name: Get Jira Issue Description
+          id: jira
+          env:
+            JIRA_TOKEN: ${{ secrets.TAB_JIRA_TOKEN }}
+            JIRA_EMAIL: ${{ secrets.TAB_JIRA_EMAIL }}
+          run: |
+            echo "Fetching Jira issue description for ${{ steps.extract.outputs.issue_key }}"
+            RESPONSE=$(curl -s -u $JIRA_EMAIL:$JIRA_TOKEN \
+              -X GET "https://tabcorp.atlassian.net/rest/api/3/issue/SM-1860")
+            
+            echo "----- RAW Jira API Response (first 1000 chars) -----"
+            echo "$RESPONSE" | head -c 1000
+            
+            SUMMARY=$(echo "$RESPONSE" | jq -r '.fields.summary // "No Summary"')
+            
+            DESCRIPTION=$(echo "$RESPONSE" | jq -r '
+              if .fields.description == null then
+                "No Description"
+              elif .fields.description | has("content") then
+                def walkContent: .[] | if .content then (.content | walkContent) else .text end;
+                .fields.description.content | walkContent
+              else
+                .fields.description
+              end
+            ' | tr '\n' ' ')
+            
+            CF_10064=$(echo "$RESPONSE" | jq -r '
+              if .fields.customfield_10064 == null then
+                "No Acceptance Criteria"
+              else
+                def walkContent: .[] | if .content then (.content | walkContent) else .text end;
+                .fields.customfield_10064.content | walkContent
+              end
+            ' | tr '\n' ' ')
+            
+            CF_10072=$(echo "$RESPONSE" | jq -r '.fields.customfield_10072 // "Not Set"')
+            
+            echo "----- Parsed Jira Fields -----"
+            echo "Summary: $SUMMARY"
+            echo "Description: $DESCRIPTION"
+            echo "customfield_10064: $CF_10064"
+            echo "customfield_10072: $CF_10072"
+            
+            # Export parsed fields as outputs
+            echo "summary=$SUMMARY" >> $GITHUB_OUTPUT
+            echo "description=$DESCRIPTION" >> $GITHUB_OUTPUT
+            echo "customfield_10064=$CF_10064" >> $GITHUB_OUTPUT
+            echo "customfield_10072=$CF_10072" >> $GITHUB_OUTPUT
+            
+            # Also export full raw JSON (for debugging or advanced AI use)
+            echo "raw_json<<EOF" >> $GITHUB_OUTPUT
+            echo "$RESPONSE" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
       - name: Get Full PR Diff
         id: diff
         env:
