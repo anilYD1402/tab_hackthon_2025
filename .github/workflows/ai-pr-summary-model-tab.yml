@@ -28,15 +28,15 @@ jobs:
       - name: Extract Jira Issue Key
         id: extract
         run: |
-          ISSUE_KEY=$(echo "${{ github.event.pull_request.title }}" | grep -oE '[A-Za-z]+-[0-9]+' | tr '[:lower:]' '[:upper:]')
-          echo "issue_key=$ISSUE_KEY" >> $GITHUB_OUTPUT
+         ISSUE_KEY=$(echo "${{ github.event.pull_request.title }}" | grep -oE '[A-Za-z]+-[0-9]+' | tr '[:lower:]' '[:upper:]')
+         echo "issue_key=$ISSUE_KEY" >> $GITHUB_OUTPUT
 
-         - name: Get Jira Issue Description
-          id: jira
-          env:
+      - name: Get Jira Issue Description
+        id: jira
+        env:
             JIRA_TOKEN: ${{ secrets.TAB_JIRA_TOKEN }}
             JIRA_EMAIL: ${{ secrets.TAB_JIRA_EMAIL }}
-          run: |
+        run: |
             echo "Fetching Jira issue description for ${{ steps.extract.outputs.issue_key }}"
             RESPONSE=$(curl -s -u $JIRA_EMAIL:$JIRA_TOKEN \
               -X GET "https://tabcorp.atlassian.net/rest/api/3/issue/SM-1860")
