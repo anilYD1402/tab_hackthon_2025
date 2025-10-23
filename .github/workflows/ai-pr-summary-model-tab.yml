@@ -25,7 +25,6 @@ jobs:
           else
             echo "PR_COMMENT_TOKEN secret is available."
           fi
-
       - name: Extract Jira Issue Key
         id: extract
         run: |
