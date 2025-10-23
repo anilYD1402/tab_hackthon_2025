@@ -40,7 +40,7 @@ jobs:
         run: |
           echo "Fetching Jira issue description for ${{ steps.extract.outputs.issue_key }}"
           RESPONSE=$(curl -s -u $JIRA_EMAIL:$JIRA_TOKEN \
-            -X GET "https://tabcorp.atlassian.net/rest/api/3/issue/SM-1997")
+            -X GET "https://tabcorp.atlassian.net/rest/api/3/issue/SM-1860")
           
           echo "----- RAW Jira API Response (first 1000 chars) -----"
           echo "$RESPONSE" | head -c 1000
@@ -93,7 +93,7 @@ jobs:
         run: |
           curl -s -H "Accept: application/vnd.github.v3.diff" \
                -H "Authorization: token $GITHUB_TOKEN" \
-               "https://github.tabcorp.com.au/api/v3/repos/TabDigital/Flutter-TAB/pulls/14799" > pr_diff.txt
+               "https://github.tabcorp.com.au/api/v3/repos/TabDigital/Flutter-TAB/pulls/14781" > pr_diff.txt
           head -n 50 pr_diff.txt
 
       - name: Check PR Size
