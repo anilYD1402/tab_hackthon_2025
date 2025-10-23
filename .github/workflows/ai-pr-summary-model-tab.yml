@@ -121,11 +121,19 @@ jobs:
           
           # Escape Jira description safely for JSON
           
-          JIRA_DESCRIPTION=$(echo "${{ steps.jira.outputs.raw_json }}" | jq -rRs .)
-           echo "---- Escaped Jira JSON ----"
+         
+          JIRA_DESCRIPTION=$(jq -n \
+          --arg summary "${{ steps.jira.outputs.summary }}" \
+          --arg description "${{ steps.jira.outputs.description }}" \
+          --arg ac "${{ steps.jira.outputs.customfield_10064 }}" \
+          --arg cf72 "${{ steps.jira.outputs.customfield_10072 }}" \
+          '{summary: $summary, description: $description, acceptance_criteria: $ac, customfield_10072: $cf72}' \
+          )
+  
+          echo "---- Escaped Jira JSON ----"
           echo "$JIRA_DESCRIPTION"
           PAYLOAD=$(jq -n \
-           --arg model "phi3:mini" \
+           --arg model "phi3:medium" \
            --arg prompt "You are a senior Flutter code reviewer with deep understanding of architecture, feature requirements, and quality assurance.
                       Analyze the Pull Request using the Jira Ticket Description & Acceptance Criteria (ACs) along with Git Diff.
                       Your job is to help reviewers, QA, and product teams understand:
