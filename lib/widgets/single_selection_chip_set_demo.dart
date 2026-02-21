@@ -33,6 +33,18 @@ class _SingleSelectionChipSetDemoState extends State<SingleSelectionChipSetDemo>
                 print('Selected: $selected');
               },
             ),
+            const SizedBox(height: 24),
+            // Figma variant: Lineups, Matchup, Ladder, News (News selected)
+            SingleSelectionChipSet(
+              options: const ['Lineups', 'Matchup', 'Ladder', 'News'],
+              initialSelected: 'News',
+              onSelectionChanged: (selected) {
+                setState(() {
+                  selectedOption = selected;
+                });
+                print('Figma variant selected: $selected');
+              },
+            ),
             const SizedBox(height: 32),
             Text(
               'Currently selected: $selectedOption',
