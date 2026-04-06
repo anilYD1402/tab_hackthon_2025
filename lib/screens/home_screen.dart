@@ -16,7 +16,6 @@ class _HomeScreenState extends State<HomeScreen> {
   final List<String> cuisines = [
     'All',
     'Italian',
-    'American',
     'Japanese',
     'Mexican',
     'Indian',
