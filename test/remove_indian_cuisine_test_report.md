@@ -2,12 +2,12 @@
 
 ## Change Summary
 - **Feature Branch / PR**: `remove-indian-cuisine`
-- **File Modified**: `lib/screens/home_screen.dart`
-- **Change Made**: Removed the `Indian` cuisine option from the `HomeScreen` cuisine filter list.
+- **File Modified**: `lib/screens/home_screen.dart` (lines 16-22)
+- **Change Made**: Removed the `American` and `Indian` cuisine options from the `HomeScreen` cuisine filter list.
 - **New Test File**: `test/remove_indian_cuisine_test.dart`
 
 ## Impacted Files
-- `lib/screens/home_screen.dart`
+- `lib/screens/home_screen.dart` (lines 16-22)
 - `test/remove_indian_cuisine_test.dart`
 - `test/remove_indian_cuisine_test_report.md`
 
@@ -15,13 +15,14 @@
 - `test/home_screen_cuisine_removal_test.md` (existing related QA documentation for home screen cuisine filters)
 
 ## Generated Test Cases
-1. **Does not render Indian filter chip on HomeScreen**
+1. **Does not render Indian or American filter chips on HomeScreen**
    - Verify that `FilterChip` with label `Indian` is not present.
-   - Verify that other cuisine filters such as `American` and `Chinese` are still rendered.
+   - Verify that `FilterChip` with label `American` is not present.
+   - Verify that remaining filters such as `Chinese` are still rendered.
 
 2. **HomeScreen still renders remaining cuisine filters**
    - Verify the remaining filter chips are rendered correctly.
-   - Assert that `Italian`, `Japanese`, `Mexican`, and `American` filter chips exist.
+   - Assert that `Italian`, `Japanese`, `Mexican`, and `Chinese` filter chips exist.
 
 ## Test Execution
 ### Command
