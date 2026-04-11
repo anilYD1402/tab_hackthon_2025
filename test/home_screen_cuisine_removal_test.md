@@ -29,6 +29,11 @@
 
 ---
 
+## Suggested PR Description
+- Remove the `American` and `Indian` cuisine filter options from the home screen.
+- Update QA documentation to reflect the combined removal and include impacted area details.
+- Impacted file: `lib/screens/home_screen.dart` (lines 16-22).
+
 ## Additional Notes
 - This change affects the UI display only; no backend or data changes
 - Ensure that filtering still works correctly for remaining cuisines

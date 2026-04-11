@@ -42,3 +42,9 @@ flutter test test/remove_indian_cuisine_test.dart
 ## Notes
 - These tests validate the UI change in `HomeScreen` filter chips only.
 - The report is stored in the `test` folder as requested.
+
+## Suggested PR Description
+- Remove `American` and `Indian` cuisine filter options from `HomeScreen`.
+- Update test coverage to verify the absence of both filter chips and the presence of remaining cuisine filters.
+- Impacted file: `lib/screens/home_screen.dart` (lines 16-22).
+
