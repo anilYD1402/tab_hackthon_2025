@@ -18,7 +18,6 @@ class _HomeScreenState extends State<HomeScreen> {
     'Italian',
     'Japanese',
     'Mexican',
-    'American',
     'Chinese',
   ];
 
