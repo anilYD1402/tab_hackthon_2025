@@ -1,0 +1,30 @@
+name: PR Description Check
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+jobs:
+  validate-pr:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Validate PR description
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const body = context.payload.pull_request.body || "";
+
+            const requiredSections = [
+              "JIRA ID",
+              "QA Impact Summary",
+              "Modified Files",
+              "QA Needs to Test",
+              "Regression Testing"
+            ];
+
+            let missing = requiredSections.filter(section => !body.includes(section));
+
+            if (missing.length > 0) {
+              core.setFailed(`Missing required sections: ${missing.join(", ")}`);
+            }
