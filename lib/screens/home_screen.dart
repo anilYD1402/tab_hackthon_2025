@@ -13,11 +13,12 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   late List<Restaurant> restaurants;
   String selectedCuisine = 'All';
-  final List<String> cuisines = [
+  List<String> get cuisines => [
     'All',
     'Italian',
     'Japanese',
     'Mexican',
+    'Indian',
     'Chinese',
   ];
 
