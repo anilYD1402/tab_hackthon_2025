@@ -19,6 +19,8 @@ class _HomeScreenState extends State<HomeScreen> {
     'Japanese',
     'Mexican',
     'Chinese',
+    'American',
+    'Indian',
   ];
 
   @override
